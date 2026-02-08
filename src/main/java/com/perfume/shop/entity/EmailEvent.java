@@ -54,11 +54,11 @@ public class EmailEvent {
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
-    @Column(nullable = false)
+    @Column(nullable = true)
     @Builder.Default
     private LocalDateTime nextRetryAt = null;
     
-    @Column(nullable = false)
+    @Column(nullable = true)
     @Builder.Default
     private LocalDateTime sentAt = null;
     

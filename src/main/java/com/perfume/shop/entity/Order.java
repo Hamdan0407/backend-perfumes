@@ -45,6 +45,13 @@ public class Order extends BaseEntity {
     @Column(nullable = false)
     private BigDecimal shippingCost;
     
+    @Column(precision = 10, scale = 2)
+    @Builder.Default
+    private BigDecimal discount = BigDecimal.ZERO;
+    
+    @Column(length = 50)
+    private String couponCode;
+    
     @Column(nullable = false)
     private BigDecimal totalAmount;
     
@@ -85,7 +92,9 @@ public class Order extends BaseEntity {
         PLACED,           // Order created after payment confirmation
         CONFIRMED,        // Admin confirmed the order
         PACKED,           // Order packed and ready
+        HANDOVER,         // Package handed over to courier partner
         SHIPPED,          // Order shipped
+        OUT_FOR_DELIVERY, // Order is out for delivery
         DELIVERED,        // Order delivered to customer
         CANCELLED,        // Order cancelled
         REFUNDED          // Refund processed

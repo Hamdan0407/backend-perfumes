@@ -2,13 +2,17 @@ package com.perfume.shop.controller;
 
 import com.perfume.shop.dto.ProductFilterRequest;
 import com.perfume.shop.dto.ProductResponse;
+import com.perfume.shop.entity.User;
 import com.perfume.shop.service.ProductService;
+import com.perfume.shop.service.ProductViewService;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -26,6 +30,7 @@ import java.util.List;
 public class ProductController {
     
     private final ProductService productService;
+    private final ProductViewService productViewService;
     
     /**
      * Create pageable with sort configuration.
@@ -65,12 +70,23 @@ public class ProductController {
     
     /**
      * Get single product by ID.
+     * Also tracks the product view for recently viewed feature.
      * 
      * @param id Product ID
+     * @param user Authenticated user (optional)
+     * @param session HTTP session for guest tracking
      * @return Product details
      */
     @GetMapping("/{id}")
-    public ResponseEntity<ProductResponse> getProductById(@PathVariable Long id) {
+    public ResponseEntity<ProductResponse> getProductById(
+            @PathVariable Long id,
+            @AuthenticationPrincipal User user,
+            HttpSession session
+    ) {
+        // Track product view asynchronously
+        String sessionId = session.getId();
+        productViewService.trackProductView(id, user, sessionId);
+        
         return ResponseEntity.ok(productService.getProductById(id));
     }
     
@@ -206,5 +222,39 @@ public class ProductController {
     @GetMapping("/categories")
     public ResponseEntity<List<String>> getAllCategories() {
         return ResponseEntity.ok(productService.getAllCategories());
+    }
+    
+    /**
+     * Get related products based on category and brand.
+     * 
+     * @param id Product ID to find related products for
+     * @param limit Maximum number of related products to return (default: 4)
+     * @return List of related products
+     */
+    @GetMapping("/{id}/related")
+    public ResponseEntity<List<ProductResponse>> getRelatedProducts(
+            @PathVariable Long id,
+            @RequestParam(defaultValue = "4") int limit
+    ) {
+        return ResponseEntity.ok(productService.getRelatedProducts(id, limit));
+    }
+    
+    /**
+     * Get recently viewed products for current user/session.
+     * Returns products the user has recently viewed.
+     * 
+     * @param user Authenticated user (optional)
+     * @param session HTTP session for guest tracking
+     * @param limit Maximum number of products to return (default: 10)
+     * @return List of recently viewed products
+     */
+    @GetMapping("/recently-viewed")
+    public ResponseEntity<List<ProductResponse>> getRecentlyViewed(
+            @AuthenticationPrincipal User user,
+            HttpSession session,
+            @RequestParam(defaultValue = "10") int limit
+    ) {
+        String sessionId = user == null ? session.getId() : null;
+        return ResponseEntity.ok(productViewService.getRecentlyViewed(user, sessionId, limit));
     }
 }

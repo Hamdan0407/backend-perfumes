@@ -53,13 +53,13 @@ public class Product extends BaseEntity {
     @Column(columnDefinition = "TEXT")
     private String imageUrl;
     
-    @ElementCollection(fetch = FetchType.LAZY)
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_images", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "image_url", length = 500)
     @Builder.Default
     private List<String> additionalImages = new ArrayList<>();
     
-    @ElementCollection(fetch = FetchType.LAZY)
+    @ElementCollection(fetch = FetchType.EAGER)
     @CollectionTable(name = "product_notes", joinColumns = @JoinColumn(name = "product_id"))
     @Column(name = "note", length = 100)
     @Builder.Default

@@ -1,11 +1,5 @@
--- Insert test users
-INSERT INTO users (email, password, first_name, last_name, phone_number, address, city, country, zip_code, role, active, created_at, updated_at) 
-VALUES 
-('admin@example.com', '$2a$10$slYQmyNdGzin7olVVCb1Be7DlH.PKZbv5H8KfzzIgXXbVxzy2EI.e', 'Admin', 'User', '9876543214', '555 Main St', 'New York', 'USA', '10001', 'ADMIN', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-('user@example.com', '$2a$10$slYQmyNdGzin7olVVCb1Be7DlH.PKZbv5H8KfzzIgXXbVxzy2EI.e', 'Test', 'User', '1234567890', '123 User St', 'New York', 'USA', '10001', 'CUSTOMER', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-('owner@perfume.com', '$2a$10$slYQmyNdGzin7olVVCb1Be7DlH.PKZbv5H8KfzzIgXXbVxzy2EI.e', 'Owner', 'Admin', '9999999999', '1 Admin St', 'New York', 'USA', '10001', 'OWNER', true, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+-- Sample products only - Users are created by initializers
 
--- Insert sample products
 INSERT INTO products (name, brand, description, price, discount_price, category, type, volume, image_url, stock, active, featured, rating, review_count, created_at, updated_at) VALUES
 ('No. 5', 'Chanel', 'Iconic floral fragrance with timeless elegance', 5000.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Chanel+No+5', 25, 1, 1, 4.8, 245, NOW(), NOW()),
 ('Jadore', 'Dior', 'Luxurious fruity floral with sensual notes', 4500.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Dior+Jadore', 32, 1, 0, 4.7, 189, NOW(), NOW()),

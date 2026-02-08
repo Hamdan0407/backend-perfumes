@@ -25,4 +25,6 @@ public class CheckoutRequest {
     private String shippingZipCode;
     
     private String shippingPhone;
+    
+    private String couponCode;
 }

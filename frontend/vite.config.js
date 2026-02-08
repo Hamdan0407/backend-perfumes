@@ -3,7 +3,7 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
   plugins: [react()],
-  
+
   // Development server configuration
   server: {
     port: 3000,
@@ -17,21 +17,21 @@ export default defineConfig({
       }
     }
   },
-  
+
   // Production build configuration
   build: {
     // Output directory
     outDir: 'dist',
-    
+
     // Assets directory
     assetsDir: 'assets',
-    
+
     // Chunk size warnings
     chunkSizeWarningLimit: 500,
-    
+
     // Source map for production debugging (optional - can be disabled for smaller bundle)
     sourcemap: false,
-    
+
     // Minification
     minify: 'terser',
     terserOptions: {
@@ -43,7 +43,7 @@ export default defineConfig({
         comments: false
       }
     },
-    
+
     // Rollup options for optimal bundling
     rollupOptions: {
       output: {
@@ -55,14 +55,14 @@ export default defineConfig({
           'vendor-ui': ['react-toastify'],
           'vendor-state': ['zustand']
         },
-        
+
         // Asset naming for cache busting
         entryFileNames: 'js/[name].[hash].js',
         chunkFileNames: 'js/[name].[hash].js',
         assetFileNames: (assetInfo) => {
           const info = assetInfo.name.split('.');
           const ext = info[info.length - 1];
-          
+
           if (/png|jpe?g|gif|svg/.test(ext)) {
             return `images/[name].[hash][extname]`;
           } else if (/woff|woff2|eot|ttf|otf/.test(ext)) {
@@ -74,20 +74,20 @@ export default defineConfig({
         }
       }
     },
-    
+
     // CSS code splitting
     cssCodeSplit: true,
-    
+
     // Report compressed size
     reportCompressedSize: true
   },
-  
+
   // Optimization
   optimizeDeps: {
     include: ['react', 'react-dom', 'axios', 'react-router-dom'],
     exclude: []
   },
-  
+
   // Define environment variables
   define: {
     __DEV__: JSON.stringify(process.env.NODE_ENV !== 'production')

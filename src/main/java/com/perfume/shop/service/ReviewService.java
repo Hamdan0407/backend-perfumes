@@ -4,7 +4,9 @@ import com.perfume.shop.dto.ReviewRequest;
 import com.perfume.shop.entity.Product;
 import com.perfume.shop.entity.Review;
 import com.perfume.shop.entity.User;
+import com.perfume.shop.exception.ResourceNotFoundException;
 import com.perfume.shop.repository.ReviewRepository;
+import com.perfume.shop.repository.OrderRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -17,10 +19,16 @@ public class ReviewService {
     
     private final ReviewRepository reviewRepository;
     private final ProductService productService;
+    private final OrderRepository orderRepository;
     
     @Transactional
     public Review createReview(User user, ReviewRequest request) {
         Product product = productService.getProductEntityById(request.getProductId());
+        
+        // Check if user has purchased this product
+        if (!orderRepository.hasUserPurchasedProduct(user.getId(), product.getId())) {
+            throw new RuntimeException("You can only review products you have purchased");
+        }
         
         // Check if user already reviewed this product
         if (reviewRepository.existsByUserIdAndProductId(user.getId(), product.getId())) {
@@ -50,7 +58,7 @@ public class ReviewService {
     @Transactional
     public Review updateReview(Long reviewId, User user, ReviewRequest request) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new RuntimeException("Review not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId.toString()));
         
         if (!review.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Access denied");
@@ -69,7 +77,7 @@ public class ReviewService {
     @Transactional
     public void deleteReview(Long reviewId, User user) {
         Review review = reviewRepository.findById(reviewId)
-                .orElseThrow(() -> new RuntimeException("Review not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Review", reviewId.toString()));
         
         if (!review.getUser().getId().equals(user.getId())) {
             throw new RuntimeException("Access denied");

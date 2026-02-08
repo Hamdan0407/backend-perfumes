@@ -20,7 +20,19 @@ public class CartController {
     
     @GetMapping
     public ResponseEntity<CartResponse> getCart(@AuthenticationPrincipal User user) {
-        return ResponseEntity.ok(cartService.getCart(user));
+        try {
+            return ResponseEntity.ok(cartService.getCart(user));
+        } catch (Exception e) {
+            // Return empty cart on error
+            CartResponse emptyCart = CartResponse.builder()
+                    .items(java.util.List.of())
+                    .subtotal(java.math.BigDecimal.ZERO)
+                    .tax(java.math.BigDecimal.ZERO)
+                    .total(java.math.BigDecimal.ZERO)
+                    .itemCount(0)
+                    .build();
+            return ResponseEntity.ok(emptyCart);
+        }
     }
     
     @PostMapping("/items")

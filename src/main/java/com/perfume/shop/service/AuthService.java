@@ -76,9 +76,10 @@ public class AuthService implements UserDetailsService {
                     "</body></html>";
             try {
                 emailService.sendEmail(user.getEmail(), subject, body);
-                log.info("Password reset email sent successfully to: {}", user.getEmail());
+                log.info("✅ Password reset email sent successfully to: {}", user.getEmail());
             } catch (Exception emailException) {
-                log.warn("Failed to send password reset email to {}: {}", user.getEmail(), emailException.getMessage());
+                log.error("❌ FAILED to send password reset email to {}", user.getEmail(), emailException);
+                log.error("Email exception: {}", emailException.getMessage());
                 // Don't fail the request if email fails - token is still stored
             }
         } catch (Exception e) {

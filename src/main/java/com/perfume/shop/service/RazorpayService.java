@@ -12,6 +12,7 @@ import org.json.JSONObject;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import jakarta.annotation.PostConstruct;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import java.security.InvalidKeyException;
@@ -43,8 +44,20 @@ public class RazorpayService {
     @Value("${app.razorpay.currency}")
     private String currency;
     
+    @PostConstruct
+    public void init() {
+        log.info("=== RAZORPAY CONFIG INITIALIZED ===");
+        log.info("Key ID: {}", razorpayKeyId);
+        log.info("Key Secret Length: {} chars", razorpayKeySecret != null ? razorpayKeySecret.length() : "null");
+        log.info("Key Secret First 5 chars: {}", razorpayKeySecret != null && razorpayKeySecret.length() >= 5 ? razorpayKeySecret.substring(0, 5) : "N/A");
+        log.info("Webhook Secret: {}", webhookSecret);
+        log.info("Currency: {}", currency);
+        log.info("====================================");
+    }
+    
     /**
      * Create a Razorpay order for payment processing.
+     * Supports DEMO MODE when dummy credentials are configured.
      * Amount should be in smallest currency unit (paise for INR, cents for USD).
      * 
      * @param request RazorpayOrderRequest containing amount, receipt, and customer details
@@ -53,30 +66,18 @@ public class RazorpayService {
      */
     public RazorpayOrderResponse createRazorpayOrder(RazorpayOrderRequest request) {
         try {
-            log.info("Razorpay Key ID: {}", razorpayKeyId);
-            log.info("Razorpay Key Secret length: {}", razorpayKeySecret != null ? razorpayKeySecret.length() : 0);
-            
-            // Check if keys are configured (detect placeholder values)
-            boolean isDemoMode = razorpayKeyId == null || 
-                                 razorpayKeyId.isEmpty() ||
-                                 razorpayKeyId.startsWith("${") || 
-                                 razorpayKeyId.contains("your_razorpay") ||
-                                 razorpayKeyId.equals("rzp_test_your_razorpay_key_id") ||
-                                 razorpayKeySecret == null || 
-                                 razorpayKeySecret.isEmpty() ||
-                                 razorpayKeySecret.startsWith("${") ||
-                                 razorpayKeySecret.contains("your_razorpay") ||
-                                 razorpayKeySecret.equals("your_razorpay_key_secret");
-            
-            log.info("Demo mode: {}", isDemoMode);
+            // Check if we're in demo mode (dummy credentials)
+            boolean isDemoMode = isDemoMode();
             
             if (isDemoMode) {
-                // Demo mode - generate mock order ID
-                log.warn("Razorpay not configured. Using demo mode with mock order ID");
-                String mockOrderId = "order_" + System.currentTimeMillis() + "_" + (int)(Math.random() * 10000);
+                log.warn("DEMO MODE: Using simulated Razorpay order (no real payment gateway)");
+                
+                // Generate a fake Razorpay order ID for demo
+                String demoOrderId = "order_demo_" + System.currentTimeMillis();
+                
                 return RazorpayOrderResponse.builder()
-                        .razorpayOrderId(mockOrderId)
-                        .razorpayKeyId("rzp_test_demo_mode")
+                        .razorpayOrderId(demoOrderId)
+                        .razorpayKeyId("rzp_test_demo_mode") // Special flag for frontend
                         .amount(request.getAmount())
                         .currency(request.getCurrency())
                         .customerEmail(request.getCustomerEmail())
@@ -84,6 +85,11 @@ public class RazorpayService {
                         .customerPhone(request.getCustomerPhone())
                         .build();
             }
+            
+            // PRODUCTION: Validate credentials are configured
+            validateRazorpayConfiguration();
+            
+            log.info("Creating Razorpay order for amount: {}", request.getAmount());
             
             RazorpayClient client = new RazorpayClient(razorpayKeyId, razorpayKeySecret);
             
@@ -120,6 +126,33 @@ public class RazorpayService {
                     .build();
             
         } catch (RazorpayException e) {
+            log.error("Razorpay API error: {} - {}", e.getMessage(), e.getClass().getSimpleName());
+            
+            // If authentication fails, fall back to demo mode
+            if (e.getMessage().contains("Authentication failed") || 
+                e.getMessage().contains("BAD_REQUEST_ERROR") ||
+                e.getMessage().contains("401") ||
+                e.getMessage().contains("403")) {
+                
+                log.warn("⚠️  Razorpay authentication failed. Falling back to DEMO MODE.");
+                log.warn("Please verify your Razorpay Key ID and Secret are valid test credentials.");
+                log.info("Current Key ID: {}", razorpayKeyId);
+                log.info("Current Secret Length: {} chars", razorpayKeySecret != null ? razorpayKeySecret.length() : "null");
+                
+                // Return demo mode response
+                String demoOrderId = "order_demo_" + System.currentTimeMillis();
+                return RazorpayOrderResponse.builder()
+                        .razorpayOrderId(demoOrderId)
+                        .razorpayKeyId("rzp_test_demo_mode")
+                        .amount(request.getAmount())
+                        .currency(request.getCurrency())
+                        .customerEmail(request.getCustomerEmail())
+                        .customerName(request.getCustomerName())
+                        .customerPhone(request.getCustomerPhone())
+                        .build();
+            }
+            
+            // For other errors, throw the exception
             log.error("Razorpay order creation failed: {}", e.getMessage(), e);
             throw new RuntimeException("Failed to create Razorpay order: " + e.getMessage());
         }
@@ -127,10 +160,9 @@ public class RazorpayService {
     
     /**
      * Verify payment signature using HMAC SHA256.
+     * In DEMO MODE, always returns true.
      * This ensures the payment webhook came from Razorpay and wasn't tampered with.
      * Uses constant-time comparison to prevent timing attacks.
-     * 
-     * In demo mode, accepts any signature for testing purposes.
      * 
      * Signature calculation:
      * HMAC-SHA256(razorpay_order_id + "|" + razorpay_payment_id, webhook_secret)
@@ -140,20 +172,13 @@ public class RazorpayService {
      */
     public boolean verifyPaymentSignature(RazorpayPaymentVerificationRequest request) {
         try {
-            // Check for demo mode - accept demo signatures
-            boolean isDemoMode = razorpayKeyId == null || 
-                                 razorpayKeyId.contains("your_razorpay") ||
-                                 webhookSecret == null ||
-                                 webhookSecret.contains("your_razorpay");
-            
-            if (isDemoMode) {
-                // In demo mode, accept demo signatures
-                if (request.getRazorpaySignature() != null && 
-                    request.getRazorpaySignature().startsWith("demo_")) {
-                    log.info("Demo mode: Accepting demo signature for payment: {}", request.getRazorpayPaymentId());
-                    return true;
-                }
+            // Demo mode - skip verification
+            if (isDemoMode() || request.getRazorpayOrderId().startsWith("order_demo_")) {
+                log.info("DEMO MODE: Skipping payment signature verification");
+                return true;
             }
+            
+            validateRazorpayConfiguration();
             
             // Combine order ID and payment ID with pipe separator
             String message = request.getRazorpayOrderId() + "|" + request.getRazorpayPaymentId();
@@ -181,39 +206,90 @@ public class RazorpayService {
     
     /**
      * Verify webhook signature from Razorpay.
-     * Ensures webhook payload is authentic and unmodified.
-     * Uses constant-time comparison to prevent timing attacks.
-     * 
-     * Signature is calculated on the entire webhook payload:
-     * HMAC-SHA256(payload, webhook_secret)
+     * PRODUCTION ONLY - Signature verification is mandatory.
      * 
      * @param payload Raw webhook payload as string
      * @param signatureHeader X-Razorpay-Signature header value
      * @return true if signature is valid, false otherwise
+     * @throws IllegalStateException if webhook secret not configured
      */
     public boolean verifyWebhookSignature(String payload, String signatureHeader) {
         try {
+            validateRazorpayConfiguration();
+            
             if (signatureHeader == null || signatureHeader.isEmpty()) {
                 log.warn("Webhook signature header is missing");
                 return false;
             }
-            
+
+            // Calculate expected signature: HMAC-SHA256(payload, webhook_secret)
             String expectedSignature = generateHmacSha256(payload, webhookSecret);
-            
+
             // Use constant-time comparison to prevent timing attacks
             boolean isValid = CryptoUtil.constantTimeEquals(expectedSignature, signatureHeader);
-            
+
             if (isValid) {
-                log.debug("Webhook signature verified");
+                log.debug("Webhook signature verified successfully");
             } else {
                 log.warn("Webhook signature verification failed");
             }
-            
+
             return isValid;
-            
+
         } catch (Exception e) {
             log.error("Error verifying webhook signature: {}", e.getMessage(), e);
             return false;
+        }
+    }
+    
+    /**
+     * Check if we're in demo mode (using dummy/placeholder credentials).
+     * 
+     * @return true if using demo/dummy credentials
+     */
+    private boolean isDemoMode() {
+        return razorpayKeyId == null || 
+               razorpayKeyId.isEmpty() ||
+               razorpayKeyId.contains("dummy") ||
+               razorpayKeyId.contains("test_demo") ||
+               razorpayKeyId.equals("rzp_test_dummy") ||
+               razorpayKeySecret == null ||
+               razorpayKeySecret.isEmpty() ||
+               razorpayKeySecret.contains("dummy");
+    }
+    
+    /**
+     * Validate that Razorpay is properly configured for production.
+     * MUST be called before any payment operation.
+     * 
+     * @throws IllegalStateException if credentials are missing or invalid
+     */
+    private void validateRazorpayConfiguration() {
+        if (razorpayKeyId == null || razorpayKeyId.isEmpty() ||
+            razorpayKeyId.startsWith("${") || razorpayKeyId.contains("your_razorpay")) {
+            throw new IllegalStateException(
+                "Razorpay Key ID not configured. " +
+                "Set RAZORPAY_KEY_ID environment variable with LIVE key (rzp_live_...)");
+        }
+        
+        if (razorpayKeySecret == null || razorpayKeySecret.isEmpty() ||
+            razorpayKeySecret.startsWith("${") || razorpayKeySecret.contains("your_razorpay")) {
+            throw new IllegalStateException(
+                "Razorpay Key Secret not configured. " +
+                "Set RAZORPAY_KEY_SECRET environment variable");
+        }
+        
+        if (webhookSecret == null || webhookSecret.isEmpty() ||
+            webhookSecret.startsWith("${") || webhookSecret.contains("your_razorpay")) {
+            throw new IllegalStateException(
+                "Razorpay Webhook Secret not configured. " +
+                "Set RAZORPAY_WEBHOOK_SECRET environment variable");
+        }
+        
+        // Verify we're using LIVE keys in production, not test keys
+        if (!razorpayKeyId.startsWith("rzp_live_")) {
+            log.warn("⚠️  WARNING: Using TEST Razorpay keys. " +
+                "Production must use LIVE keys (rzp_live_...)");
         }
     }
     

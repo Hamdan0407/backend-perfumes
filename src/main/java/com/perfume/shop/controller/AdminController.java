@@ -1,10 +1,6 @@
 package com.perfume.shop.controller;
 
-import com.perfume.shop.dto.ApiResponse;
-import com.perfume.shop.dto.OrderStatusUpdateRequest;
-import com.perfume.shop.dto.ProductRequest;
-import com.perfume.shop.dto.ProductResponse;
-import com.perfume.shop.dto.UserResponse;
+import com.perfume.shop.dto.*;
 import com.perfume.shop.entity.Order;
 import com.perfume.shop.entity.OrderHistory;
 import com.perfume.shop.entity.OrderItem;
@@ -14,6 +10,7 @@ import com.perfume.shop.repository.OrderHistoryRepository;
 import com.perfume.shop.repository.OrderRepository;
 import com.perfume.shop.repository.ProductRepository;
 import com.perfume.shop.repository.UserRepository;
+import com.perfume.shop.service.AnalyticsService;
 import com.perfume.shop.service.InventoryService;
 import com.perfume.shop.service.OrderService;
 import com.perfume.shop.service.ProductService;
@@ -27,6 +24,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -51,6 +49,8 @@ public class AdminController {
     private final OrderHistoryRepository orderHistoryRepository;
     private final ProductRepository productRepository;
     private final InventoryService inventoryService;
+    private final AnalyticsService analyticsService;
+    private final com.perfume.shop.service.CouponService couponService;
     
     /**
      * Create pageable with sort configuration.
@@ -554,6 +554,49 @@ public class AdminController {
         return ResponseEntity.ok(stats);
     }
     
+    // ==================== ANALYTICS ENDPOINTS ====================
+    
+    /**
+     * Get daily sales data for charts
+     * 
+     * @param days Number of days to look back (default: 30)
+     * @return List of daily data points
+     */
+    @GetMapping("/analytics/daily-sales")
+    public ResponseEntity<List<AnalyticsDataPoint>> getDailySales(
+            @RequestParam(defaultValue = "30") int days) {
+        List<AnalyticsDataPoint> data = analyticsService.getDailySalesData(days);
+        return ResponseEntity.ok(data);
+    }
+    
+    /**
+     * Get monthly sales data for charts
+     * 
+     * @param months Number of months to look back (default: 12)
+     * @return List of monthly data points
+     */
+    @GetMapping("/analytics/monthly-sales")
+    public ResponseEntity<List<AnalyticsDataPoint>> getMonthlySales(
+            @RequestParam(defaultValue = "12") int months) {
+        List<AnalyticsDataPoint> data = analyticsService.getMonthlySalesData(months);
+        return ResponseEntity.ok(data);
+    }
+    
+    /**
+     * Get top selling products
+     * 
+     * @param limit Number of products to return (default: 10)
+     * @param days Number of days to look back (default: 30)
+     * @return List of top products with sales data
+     */
+    @GetMapping("/analytics/top-products")
+    public ResponseEntity<List<TopProductDTO>> getTopProducts(
+            @RequestParam(defaultValue = "10") int limit,
+            @RequestParam(defaultValue = "30") int days) {
+        List<TopProductDTO> topProducts = analyticsService.getTopSellingProducts(limit, days);
+        return ResponseEntity.ok(topProducts);
+    }
+    
     /**
      * Restore stock when order is cancelled
      */
@@ -580,4 +623,111 @@ public class AdminController {
         
         orderHistoryRepository.save(history);
     }
+    
+    /**
+     * Reset all analytics data - DELETE ALL ORDERS
+     * WARNING: This will permanently delete all orders from the database!
+     */
+    @DeleteMapping("/analytics/reset")
+    public ResponseEntity<?> resetAnalyticsData() {
+        try {
+            // Delete all order history first (foreign key constraint)
+            orderHistoryRepository.deleteAll();
+            
+            // Delete all orders
+            orderRepository.deleteAll();
+            
+            return ResponseEntity.ok(Map.of(
+                "message", "All analytics data has been reset",
+                "deletedOrders", "all"
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(Map.of("error", "Failed to reset analytics: " + e.getMessage()));
+        }
+    }
+    
+    // ==================== Coupon Management ====================
+    
+    /**
+     * Get all coupons.
+     * 
+     * @return List of all coupons
+     */
+    @GetMapping("/coupons")
+    public ResponseEntity<List<CouponResponse>> getAllCoupons() {
+        return ResponseEntity.ok(couponService.getAllCoupons());
+    }
+    
+    /**
+     * Get active coupons only.
+     * 
+     * @return List of active coupons
+     */
+    @GetMapping("/coupons/active")
+    public ResponseEntity<List<CouponResponse>> getActiveCoupons() {
+        return ResponseEntity.ok(couponService.getActiveCoupons());
+    }
+    
+    /**
+     * Get coupon by ID.
+     * 
+     * @param id Coupon ID
+     * @return Coupon details
+     */
+    @GetMapping("/coupons/{id}")
+    public ResponseEntity<CouponResponse> getCouponById(@PathVariable Long id) {
+        return ResponseEntity.ok(couponService.getCouponById(id));
+    }
+    
+    /**
+     * Create new coupon.
+     * 
+     * @param request Coupon details
+     * @return Created coupon
+     */
+    @PostMapping("/coupons")
+    public ResponseEntity<CouponResponse> createCoupon(@Valid @RequestBody CouponRequest request) {
+        return ResponseEntity.status(HttpStatus.CREATED)
+                .body(couponService.createCoupon(request));
+    }
+    
+    /**
+     * Update existing coupon.
+     * 
+     * @param id Coupon ID
+     * @param request Updated coupon details
+     * @return Updated coupon
+     */
+    @PutMapping("/coupons/{id}")
+    public ResponseEntity<CouponResponse> updateCoupon(
+            @PathVariable Long id,
+            @Valid @RequestBody CouponRequest request
+    ) {
+        return ResponseEntity.ok(couponService.updateCoupon(id, request));
+    }
+    
+    /**
+     * Delete coupon.
+     * 
+     * @param id Coupon ID
+     * @return Success message
+     */
+    @DeleteMapping("/coupons/{id}")
+    public ResponseEntity<ApiResponse> deleteCoupon(@PathVariable Long id) {
+        couponService.deleteCoupon(id);
+        return ResponseEntity.ok(ApiResponse.success("Coupon deleted successfully"));
+    }
+    
+    /**
+     * Toggle coupon active/inactive status.
+     * 
+     * @param id Coupon ID
+     * @return Updated coupon
+     */
+    @PatchMapping("/coupons/{id}/toggle")
+    public ResponseEntity<CouponResponse> toggleCouponStatus(@PathVariable Long id) {
+        return ResponseEntity.ok(couponService.toggleCouponStatus(id));
+    }
 }
+

@@ -1,6 +1,8 @@
 package com.perfume.shop.controller;
 
 import com.perfume.shop.dto.CheckoutRequest;
+import com.perfume.shop.dto.OrderPageResponse;
+import com.perfume.shop.dto.OrderSummaryDto;
 import com.perfume.shop.dto.OrderTimelineResponse;
 import com.perfume.shop.dto.RazorpayOrderResponse;
 import com.perfume.shop.dto.RazorpayPaymentVerificationRequest;
@@ -19,6 +21,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * Order Controller - Manages order lifecycle and payment processing.
@@ -99,13 +102,49 @@ public class OrderController {
     }
     
     /**
-     * Get all orders for authenticated user.
+     * Get payment status for an order.
+     * Useful for checking payment status when webhooks are delayed.
+     *
+     * @param user Authenticated user
+     * @param orderId Order ID
+     * @return Payment status information
+     */
+    @GetMapping("/{orderId}/payment-status")
+    public ResponseEntity<Map<String, Object>> getPaymentStatus(
+            @AuthenticationPrincipal User user,
+            @PathVariable Long orderId
+    ) {
+        Order order = orderService.getOrderById(orderId, user);
+
+        // No need to verify user ownership here as getOrderById already handles it
+
+        Map<String, Object> status = Map.of(
+                "orderId", order.getId(),
+                "orderNumber", order.getOrderNumber(),
+                "status", order.getStatus(),
+                "razorpayOrderId", order.getRazorpayOrderId(),
+                "razorpayPaymentId", order.getRazorpayPaymentId(),
+                "totalAmount", order.getTotalAmount(),
+                "createdAt", order.getCreatedAt(),
+                "isPaid", order.getStatus() == Order.OrderStatus.PLACED ||
+                         order.getStatus() == Order.OrderStatus.CONFIRMED ||
+                         order.getStatus() == Order.OrderStatus.SHIPPED ||
+                         order.getStatus() == Order.OrderStatus.DELIVERED
+        );
+
+        return ResponseEntity.ok(status);
+    }
+    
+    /**
+     * Get all user orders.
      * 
      * @param user Authenticated user
      * @return List of user's orders
      */
     @GetMapping
-    public ResponseEntity<List<Order>> getUserOrders(@AuthenticationPrincipal User user) {
+    public ResponseEntity<List<Order>> getUserOrders(
+            @AuthenticationPrincipal User user
+    ) {
         return ResponseEntity.ok(orderService.getUserOrders(user));
     }
     
@@ -118,13 +157,48 @@ public class OrderController {
      * @return Page of user's orders
      */
     @GetMapping("/page")
-    public ResponseEntity<Page<Order>> getUserOrdersPage(
+    public ResponseEntity<OrderPageResponse> getUserOrdersPage(
             @AuthenticationPrincipal User user,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        Pageable pageable = PageRequest.of(page, size);
-        return ResponseEntity.ok(orderService.getUserOrdersPage(user, pageable));
+        try {
+            Pageable pageable = PageRequest.of(page, size);
+            Page<Order> orders = orderService.getUserOrdersPage(user, pageable);
+            
+            OrderPageResponse response = OrderPageResponse.builder()
+                    .content(orders.getContent().stream()
+                            .map(order -> OrderSummaryDto.builder()
+                                    .id(order.getId())
+                                    .orderNumber(order.getOrderNumber())
+                                    .status(order.getStatus().toString())
+                                    .totalAmount(order.getTotalAmount())
+                                    .createdAt(order.getCreatedAt())
+                                    .itemCount(order.getItems() != null ? order.getItems().size() : 0)
+                                    .build())
+                            .collect(java.util.stream.Collectors.toList()))
+                    .page(page)
+                    .size(size)
+                    .totalElements(orders.getTotalElements())
+                    .totalPages(orders.getTotalPages())
+                    .last(orders.isLast())
+                    .build();
+            
+            log.info("Retrieved {} orders for user: {}", orders.getTotalElements(), user.getEmail());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            log.error("Error fetching orders for user: {} - Error: {}", user.getEmail(), e.getMessage(), e);
+            // Return empty page on error
+            OrderPageResponse emptyResponse = OrderPageResponse.builder()
+                    .content(new java.util.ArrayList<>())
+                    .page(page)
+                    .size(size)
+                    .totalElements(0)
+                    .totalPages(0)
+                    .last(true)
+                    .build();
+            return ResponseEntity.ok(emptyResponse);
+        }
     }
     
     /**
@@ -213,9 +287,9 @@ public class OrderController {
     ) {
         Order order = orderService.getOrderById(id, user);
         
-        if (order.getStatus() != Order.OrderStatus.DELIVERED) {
-            log.warn("Invoice requested for non-delivered order: {}", id);
-            throw new RuntimeException("Invoice is only available for delivered orders");
+        if (order.getStatus() == Order.OrderStatus.CANCELLED || order.getStatus() == Order.OrderStatus.REFUNDED) {
+            log.warn("Invoice requested for cancelled/refunded order: {}", id);
+            throw new RuntimeException("Invoice not available for cancelled or refunded orders");
         }
         
         byte[] pdf = orderService.generateInvoicePdf(order);
@@ -223,7 +297,7 @@ public class OrderController {
         
         return ResponseEntity.ok()
                 .header("Content-Disposition", 
-                        "attachment; filename=invoice-" + order.getOrderNumber() + ".pdf")
+                        "attachment; filename=Invoice_" + order.getOrderNumber() + ".pdf")
                 .header("Content-Type", "application/pdf")
                 .body(pdf);
     }

@@ -4,9 +4,12 @@ import com.perfume.shop.dto.ProductFilterRequest;
 import com.perfume.shop.dto.ProductRequest;
 import com.perfume.shop.dto.ProductResponse;
 import com.perfume.shop.entity.Product;
+import com.perfume.shop.exception.ResourceNotFoundException;
 import com.perfume.shop.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +35,7 @@ public class ProductService {
                 .map(ProductResponse::fromEntity);
     }
 
+    @Cacheable(value = "products", key = "#id")
     public ProductResponse getProductById(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -45,19 +49,22 @@ public class ProductService {
 
     public Product getProductEntityById(Long id) {
         return productRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
+                .orElseThrow(() -> new ResourceNotFoundException("Product", id.toString()));
     }
 
+    @Cacheable(value = "categories", key = "#category + '_' + #pageable.pageNumber + '_' + #pageable.pageSize")
     public Page<ProductResponse> getProductsByCategory(String category, Pageable pageable) {
         return productRepository.findByCategoryAndActiveTrue(category, pageable)
                 .map(ProductResponse::fromEntity);
     }
 
+    @Cacheable(value = "categories", key = "#brand + '_' + #pageable.pageNumber + '_' + #pageable.pageSize")
     public Page<ProductResponse> getProductsByBrand(String brand, Pageable pageable) {
         return productRepository.findByBrandAndActiveTrue(brand, pageable)
                 .map(ProductResponse::fromEntity);
     }
 
+    @Cacheable(value = "featured-products", key = "'all'")
     public List<ProductResponse> getFeaturedProducts() {
         log.info("Fetching featured products - querying database");
         try {
@@ -160,6 +167,7 @@ public class ProductService {
     // ==================== Admin Product Management ====================
 
     @Transactional
+    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
     public ProductResponse createProduct(ProductRequest request) {
         validateProductRequest(request);
 
@@ -191,6 +199,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         validateProductRequest(request);
 
@@ -219,6 +228,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
     public ProductResponse partialUpdateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -259,6 +269,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -269,6 +280,7 @@ public class ProductService {
     }
 
     @Transactional
+    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
     public void permanentDeleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -381,6 +393,7 @@ public class ProductService {
     // ==================== Rating Management ====================
 
     @Transactional
+    @CacheEvict(value = "products", key = "#productId")
     public void updateProductRating(Long productId) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + productId));
@@ -406,6 +419,67 @@ public class ProductService {
 
     public Long getTotalOutOfStockProducts() {
         return productRepository.countOutOfStockProducts();
+    }
+    
+    /**
+     * Get related products based on category and brand similarity.
+     * Returns products from same category or brand, excluding the current product.
+     * 
+     * @param productId ID of the product to find related products for
+     * @param limit Maximum number of products to return
+     * @return List of related products
+     */
+    public List<ProductResponse> getRelatedProducts(Long productId, int limit) {
+        Product product = productRepository.findById(productId)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", productId.toString()));
+        
+        // First try to find products in same category and brand
+        List<Product> relatedProducts = productRepository
+                .findByCategoryAndBrandAndActiveTrueAndIdNot(
+                        product.getCategory(), 
+                        product.getBrand(), 
+                        productId,
+                        PageRequest.of(0, limit)
+                ).getContent();
+        
+        // If not enough products found, add products from same category
+        if (relatedProducts.size() < limit) {
+            int remaining = limit - relatedProducts.size();
+            List<Product> categoryProducts = productRepository
+                    .findByCategoryAndActiveTrueAndIdNot(
+                            product.getCategory(), 
+                            productId,
+                            PageRequest.of(0, remaining)
+                    ).getContent();
+            
+            // Add only products not already in the list
+            for (Product p : categoryProducts) {
+                if (!relatedProducts.contains(p) && relatedProducts.size() < limit) {
+                    relatedProducts.add(p);
+                }
+            }
+        }
+        
+        // If still not enough, add products from same brand
+        if (relatedProducts.size() < limit) {
+            int remaining = limit - relatedProducts.size();
+            List<Product> brandProducts = productRepository
+                    .findByBrandAndActiveTrueAndIdNot(
+                            product.getBrand(), 
+                            productId,
+                            PageRequest.of(0, remaining)
+                    ).getContent();
+            
+            for (Product p : brandProducts) {
+                if (!relatedProducts.contains(p) && relatedProducts.size() < limit) {
+                    relatedProducts.add(p);
+                }
+            }
+        }
+        
+        return relatedProducts.stream()
+                .map(ProductResponse::fromEntity)
+                .collect(Collectors.toList());
     }
 
     // ==================== Validation ====================

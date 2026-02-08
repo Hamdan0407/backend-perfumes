@@ -81,8 +81,14 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("error", "Token and password are required"));
         }
         
-        authService.resetPassword(token, newPassword);
-        return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+        try {
+            authService.resetPassword(token, newPassword);
+            return ResponseEntity.ok(Map.of("message", "Password reset successful"));
+        } catch (com.perfume.shop.security.PasswordPolicyValidator.PasswordPolicyException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Password does not meet requirements: " + e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     /**
