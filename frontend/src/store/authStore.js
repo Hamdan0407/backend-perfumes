@@ -221,22 +221,93 @@ export const useAuthStore = create(
           if (error) {
             console.error('❌ Error rehydrating auth store:', error);
             useAuthStore.setState({ sessionInitialized: true, isAuthenticated: false });
-          } else {
-            const isExpired =
-              state?.tokenExpiresAt && state.tokenExpiresAt - Date.now() < 60 * 1000;
+            return;
+          }
+
+          // Helper to parse JWT
+          const parseJwt = (token) => {
+            try {
+              return JSON.parse(atob(token.split('.')[1]));
+            } catch (e) {
+              return null;
+            }
+          };
+
+          // Defensive: If no state, treat as logged out
+          if (!state || !state.accessToken) {
+            console.log('📋 No persisted session found');
             useAuthStore.setState({
               sessionInitialized: true,
-              isAuthenticated: isExpired ? false : (state?.isAuthenticated ?? false),
+              isAuthenticated: false,
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              tokenExpiresAt: null
             });
+            // Clear legacy keys
+            storage.removeItem('accessToken');
+            storage.removeItem('token');
+            storage.removeItem('refreshToken');
+            storage.removeItem('user');
+            storage.removeItem('tokenExpiresAt');
+            return;
+          }
+
+          // Validate token via JWT exp claim (more robust than stored timestamp)
+          let isValid = false;
+          let expiresAt = state.tokenExpiresAt;
+
+          try {
+            const decoded = parseJwt(state.accessToken);
+            if (decoded && decoded.exp) {
+              // JWT exp is in seconds, convert to ms
+              const jwtExpiresAt = decoded.exp * 1000;
+              // Check if expired (with 1 minute buffer)
+              isValid = jwtExpiresAt - Date.now() > 60 * 1000;
+              expiresAt = jwtExpiresAt; // Sync stored expiry with actual token
+
+              if (!isValid) {
+                console.warn('⚠️ Persisted JWT is expired:', new Date(jwtExpiresAt).toISOString());
+              }
+            } else {
+              // Fallback to stored timestamp if parsing fails
+              isValid = state.tokenExpiresAt && (state.tokenExpiresAt - Date.now() > 60 * 1000);
+            }
+          } catch (e) {
+            console.error('Error validating persisted token:', e);
+            isValid = false;
+          }
+
+          if (isValid) {
+            console.log('✅ Session restored for:', state.user?.email);
+            useAuthStore.setState({
+              sessionInitialized: true,
+              isAuthenticated: true,
+              tokenExpiresAt: expiresAt
+            });
+
             // Sync legacy keys
-            if (state?.accessToken) {
-              storage.setItem('accessToken', state.accessToken);
-              storage.setItem('token', state.accessToken);
-            }
-            if (state?.refreshToken) {
-              storage.setItem('refreshToken', state.refreshToken);
-            }
-            console.log('📋 Auth store rehydrated:', state?.user?.email || 'no user');
+            storage.setItem('accessToken', state.accessToken);
+            storage.setItem('token', state.accessToken);
+            if (state.refreshToken) storage.setItem('refreshToken', state.refreshToken);
+            storage.setItem('tokenExpiresAt', expiresAt.toString());
+
+          } else {
+            console.log('❌ Session expired or invalid, logging out');
+            useAuthStore.setState({
+              sessionInitialized: true,
+              isAuthenticated: false,
+              user: null,
+              accessToken: null,
+              refreshToken: null,
+              tokenExpiresAt: null
+            });
+            // Clear legacy keys
+            storage.removeItem('accessToken');
+            storage.removeItem('token');
+            storage.removeItem('refreshToken');
+            storage.removeItem('user');
+            storage.removeItem('tokenExpiresAt');
           }
         };
       },

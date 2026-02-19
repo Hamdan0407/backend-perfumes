@@ -1,7 +1,7 @@
 # ============================================================================
 # STAGE 1: BUILD THE APPLICATION WITH MAVEN
 # ============================================================================
-FROM maven:3.9-eclipse-temurin-17-alpine AS builder
+FROM maven:3.9-eclipse-temurin-22-alpine AS builder
 
 WORKDIR /build
 
@@ -16,7 +16,7 @@ RUN mvn -q clean package -DskipTests
 # ============================================================================
 # STAGE 2: RUNTIME IMAGE (Final)
 # ============================================================================
-FROM eclipse-temurin:17-jdk-alpine
+FROM eclipse-temurin:22-jdk-alpine
 
 LABEL maintainer="Perfume Shop <support@perfume.com>"
 LABEL description="Production-ready Perfume Shop API"
