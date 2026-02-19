@@ -12,22 +12,26 @@ import java.math.BigDecimal;
 @AllArgsConstructor
 @Builder
 public class CartItemResponse {
-    
+
     private Long id;
-    
+
     private Long productId;
-    
+
     private String productName;
-    
+
     private String productBrand;
-    
+
     private String productImage;
-    
+
+    private Long variantId;
+
+    private String variantSize;
+
     private Integer quantity;
-    
+
     private BigDecimal price;
-    
+
     private BigDecimal subtotal;
-    
+
     private Integer availableStock;
 }

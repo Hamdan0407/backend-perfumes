@@ -58,20 +58,21 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String jwt = authHeader.substring(BEARER_TOKEN_START);
             
             // Validate token and set authentication
-            if (validateAndAuthenticateToken(jwt, request, response)) {
-                // Token is valid, continue with authenticated request
-                filterChain.doFilter(request, response);
-            } else {
-                // Token is invalid
-                handleTokenError(response, "Invalid or expired token");
-            }
-            
+            // Always continue the filter chain - let Spring Security's
+            // permitAll/authenticated rules decide, not this filter.
+            // If token is invalid, the security context stays empty and
+            // Spring will deny protected endpoints with 401.
+            validateAndAuthenticateToken(jwt, request, response);
+            filterChain.doFilter(request, response);
+
         } catch (JwtException e) {
             log.warn("JWT validation error: {}", e.getMessage());
-            handleTokenError(response, "Token validation failed: " + e.getMessage());
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
         } catch (Exception e) {
             log.error("Unexpected error in JWT filter: {}", e.getMessage(), e);
-            handleTokenError(response, "Authentication error");
+            SecurityContextHolder.clearContext();
+            filterChain.doFilter(request, response);
         }
     }
     

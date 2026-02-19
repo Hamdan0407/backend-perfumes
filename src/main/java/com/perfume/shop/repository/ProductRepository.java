@@ -19,7 +19,8 @@ public interface ProductRepository extends JpaRepository<Product, Long> {
     
     Page<Product> findByActiveTrue(Pageable pageable);
     
-    Page<Product> findByCategoryAndActiveTrue(String category, Pageable pageable);
+    @Query("SELECT p FROM Product p WHERE LOWER(p.category) = LOWER(:category) AND p.active = true")
+    Page<Product> findByCategoryAndActiveTrue(@Param("category") String category, Pageable pageable);
     
     Page<Product> findByBrandAndActiveTrue(String brand, Pageable pageable);
     

@@ -6,6 +6,7 @@ import com.perfume.shop.repository.CartRepository;
 import com.perfume.shop.repository.OrderHistoryRepository;
 import com.perfume.shop.repository.OrderRepository;
 import com.perfume.shop.repository.ProductRepository;
+import com.perfume.shop.repository.ProductVariantRepository;
 import com.stripe.exception.StripeException;
 import com.stripe.model.PaymentIntent;
 import com.stripe.param.PaymentIntentCreateParams;
@@ -62,7 +63,7 @@ public class OrderService {
                     com.lowagie.text.Font.NORMAL, grayColor);
 
             // Header Section
-            com.lowagie.text.Paragraph companyName = new com.lowagie.text.Paragraph("Parfumé", titleFont);
+            com.lowagie.text.Paragraph companyName = new com.lowagie.text.Paragraph("MUWAS", titleFont);
             companyName.setAlignment(com.lowagie.text.Element.ALIGN_LEFT);
             document.add(companyName);
 
@@ -80,11 +81,11 @@ public class OrderService {
             // Company Contact Details
             com.lowagie.text.pdf.PdfPCell companyCell = new com.lowagie.text.pdf.PdfPCell();
             companyCell.setBorder(com.lowagie.text.Rectangle.NO_BORDER);
-            companyCell.addElement(new com.lowagie.text.Paragraph("123 Perfume Lane, Mumbai, MH 400001", smallFont));
-            companyCell.addElement(new com.lowagie.text.Paragraph("Phone: +91 9894722186", smallFont));
+            companyCell.addElement(new com.lowagie.text.Paragraph("No 3, Modi Ibrahim Street, Ambur, Tamil Nadu 635802", smallFont));
+            companyCell.addElement(new com.lowagie.text.Paragraph("Phone: +91 9629004158", smallFont));
             companyCell.addElement(new com.lowagie.text.Paragraph("Email: muwas2021@gmail.com", smallFont));
             companyCell
-                    .addElement(new com.lowagie.text.Paragraph("GSTIN: 27AAAAA0000A1Z5 | PAN: AAAAA0000A", smallFont));
+                    .addElement(new com.lowagie.text.Paragraph("GSTIN: 33AAAAA0000A1Z5 | PAN: AAAAA0000A", smallFont));
             headerTable.addCell(companyCell);
 
             // Invoice Details
@@ -299,6 +300,7 @@ public class OrderService {
     private final OrderRepository orderRepository;
     private final CartRepository cartRepository;
     private final ProductRepository productRepository;
+    private final ProductVariantRepository productVariantRepository;
     private final OrderHistoryRepository orderHistoryRepository;
     private final EmailService emailService;
     private final RazorpayService razorpayService;
@@ -311,7 +313,7 @@ public class OrderService {
     private String razorpayKeyId;
 
     private static final BigDecimal TAX_RATE = new BigDecimal("0.18"); // 18% GST
-    private static final BigDecimal SHIPPING_COST = new BigDecimal("10.00");
+    private static final BigDecimal SHIPPING_COST = BigDecimal.ZERO; // No delivery cost for now
 
     /**
      * Transactional checkout flow with Razorpay integration.
@@ -371,9 +373,24 @@ public class OrderService {
         // Step 4: Lock prices - capture current prices from locked products
         for (CartItem item : cart.getItems()) {
             Product product = productMap.get(item.getProduct().getId());
-            BigDecimal currentPrice = product.getDiscountPrice() != null
-                    ? product.getDiscountPrice()
-                    : product.getPrice();
+            BigDecimal currentPrice;
+
+            if (item.getVariant() != null) {
+                // Validate variant
+                ProductVariant variant = item.getVariant();
+                if (!variant.getActive()) {
+                    throw new RuntimeException(
+                            "Variant no longer available: " + product.getName() + " - " + variant.getSize() + "ml");
+                }
+                if (variant.getStock() < item.getQuantity()) {
+                    throw new RuntimeException(
+                            "Insufficient stock for " + product.getName() + " (" + variant.getSize() + "ml)");
+                }
+                currentPrice = variant.getDiscountPrice() != null ? variant.getDiscountPrice() : variant.getPrice();
+            } else {
+                currentPrice = product.getDiscountPrice() != null ? product.getDiscountPrice() : product.getPrice();
+            }
+
             item.setPrice(currentPrice);
         }
 
@@ -383,14 +400,15 @@ public class OrderService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal tax = subtotal.multiply(TAX_RATE);
-        BigDecimal total = subtotal.add(tax).add(SHIPPING_COST);
+        BigDecimal actualShippingCost = SHIPPING_COST;
+        BigDecimal total = subtotal.add(tax).add(actualShippingCost);
 
         // Step 5.5: Apply coupon discount if provided
         BigDecimal discount = BigDecimal.ZERO;
         String appliedCouponCode = null;
         if (request.getCouponCode() != null && !request.getCouponCode().trim().isEmpty()) {
             try {
-                var couponValidation = couponService.validateCoupon(request.getCouponCode(), subtotal);
+                var couponValidation = couponService.validateCoupon(request.getCouponCode(), subtotal, user);
                 if (couponValidation.getValid()) {
                     discount = couponValidation.getDiscountAmount();
                     total = total.subtract(discount);
@@ -409,14 +427,17 @@ public class OrderService {
         // Step 7: Create order with locked prices and validated stock
         Order order = Order.builder()
                 .user(user)
+                .customerName(user.getFirstName() + (user.getLastName() != null ? " " + user.getLastName() : ""))
+                .customerEmail(user.getEmail())
                 .orderNumber(orderNumber)
                 .subtotal(subtotal)
                 .tax(tax)
-                .shippingCost(SHIPPING_COST)
+                .shippingCost(actualShippingCost)
                 .discount(discount)
                 .couponCode(appliedCouponCode)
                 .totalAmount(total)
                 .status(Order.OrderStatus.PLACED)
+                .shippingRecipientName(request.getRecipientName())
                 .shippingAddress(request.getShippingAddress())
                 .shippingCity(request.getShippingCity())
                 .shippingCountry(request.getShippingCountry())
@@ -432,6 +453,7 @@ public class OrderService {
             OrderItem orderItem = OrderItem.builder()
                     .order(order)
                     .product(product)
+                    .variant(cartItem.getVariant())
                     .quantity(cartItem.getQuantity())
                     .price(cartItem.getPrice())
                     .build();
@@ -525,16 +547,30 @@ public class OrderService {
                 continue;
             }
 
-            if (!product.getActive()) {
-                stockErrors.append("Product no longer available: ").append(product.getName()).append(". ");
-                continue;
-            }
+            if (item.getVariant() != null) {
+                ProductVariant variant = item.getVariant();
+                if (!variant.getActive()) {
+                    stockErrors.append("Variant no longer available: ").append(product.getName())
+                            .append(" (").append(variant.getSize()).append("ml). ");
+                    continue;
+                }
+                if (variant.getStock() < item.getQuantity()) {
+                    stockErrors.append("Insufficient stock for ").append(product.getName())
+                            .append(" (").append(variant.getSize()).append("ml). Available: ")
+                            .append(variant.getStock()).append(", Required: ").append(item.getQuantity()).append(". ");
+                }
+            } else {
+                if (!product.getActive()) {
+                    stockErrors.append("Product no longer available: ").append(product.getName()).append(". ");
+                    continue;
+                }
 
-            int currentStock = product.getStock();
-            if (currentStock < item.getQuantity()) {
-                stockErrors.append("Insufficient stock for ").append(product.getName())
-                        .append(". Available: ").append(currentStock)
-                        .append(", Required: ").append(item.getQuantity()).append(". ");
+                int currentStock = product.getStock();
+                if (currentStock < item.getQuantity()) {
+                    stockErrors.append("Insufficient stock for ").append(product.getName())
+                            .append(". Available: ").append(currentStock)
+                            .append(", Required: ").append(item.getQuantity()).append(". ");
+                }
             }
         }
 
@@ -547,25 +583,50 @@ public class OrderService {
         // Step 6: Deduct stock atomically
         for (OrderItem item : order.getItems()) {
             Product product = productMap.get(item.getProduct().getId());
-            int newStock = product.getStock() - item.getQuantity();
 
-            if (newStock < 0) {
-                throw new RuntimeException("Stock underflow for product: " + product.getName());
+            if (item.getVariant() != null) {
+                ProductVariant variant = item.getVariant();
+                int newStock = variant.getStock() - item.getQuantity();
+
+                if (newStock < 0) {
+                    throw new RuntimeException("Stock underflow for variant: " + variant.getId());
+                }
+
+                variant.setStock(newStock);
+                productVariantRepository.save(variant);
+                log.debug("Deducted stock for variant {}: {} units (now {})",
+                        variant.getId(), item.getQuantity(), newStock);
+            } else {
+                int newStock = product.getStock() - item.getQuantity();
+
+                if (newStock < 0) {
+                    throw new RuntimeException("Stock underflow for product: " + product.getName());
+                }
+
+                product.setStock(newStock);
+                productRepository.save(product);
+                log.debug("Deducted stock for product {}: {} units (now {})",
+                        product.getId(), item.getQuantity(), newStock);
             }
-
-            product.setStock(newStock);
-            productRepository.save(product);
-            log.debug("Deducted stock for product {}: {} units (now {})",
-                    product.getId(), item.getQuantity(), newStock);
         }
 
         // Step 7: Update order status and save payment ID
-        order.setStatus(Order.OrderStatus.PLACED);
+        order.setStatus(Order.OrderStatus.CONFIRMED);
         order.setRazorpayPaymentId(razorpayPaymentId);
         order = orderRepository.save(order);
 
-        // Step 8: Create order history entry
-        createOrderHistoryEntry(order, Order.OrderStatus.PLACED, "SYSTEM",
+        // Step 8.5: Apply coupon if used
+        if (order.getCouponCode() != null) {
+            try {
+                couponService.applyCoupon(order.getCouponCode(), order.getUser(), order);
+            } catch (Exception e) {
+                log.error("Failed to apply coupon {} for order {}", order.getCouponCode(), order.getOrderNumber(), e);
+                // Don't fail the order confirmation, but log it
+            }
+        }
+
+        // Step 9: Create order history entry
+        createOrderHistoryEntry(order, Order.OrderStatus.CONFIRMED, "SYSTEM",
                 "Payment confirmed via Razorpay. Payment ID: " + razorpayPaymentId);
 
         log.info("Payment confirmed for order: {} with payment ID: {}", order.getOrderNumber(), razorpayPaymentId);

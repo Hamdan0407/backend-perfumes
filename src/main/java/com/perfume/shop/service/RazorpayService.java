@@ -97,8 +97,6 @@ public class RazorpayService {
             orderRequest.put("amount", request.getAmount()); // Amount in paise/cents
             orderRequest.put("currency", request.getCurrency());
             orderRequest.put("receipt", request.getReceipt()); // Our order number
-            orderRequest.put("partial", false); // Full payment required
-            orderRequest.put("first_payment_min_amount", request.getAmount()); // Full amount required
             
             // Add customer notes/metadata
             JSONObject notes = new JSONObject();

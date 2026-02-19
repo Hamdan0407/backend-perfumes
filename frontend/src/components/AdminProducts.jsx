@@ -17,48 +17,26 @@ export default function AdminProducts() {
     price: '',
     stock: '',
     description: '',
-    image_url: ''
+    image_url: '',
+    variants: []
   });
 
   useEffect(() => {
-    // Demo mode: Use mock product data
-    setProducts([
-      {
-        id: 1,
-        name: 'Gucci Bloom',
-        brand: 'Gucci',
-        category: 'Women',
-        price: 89.99,
-        stock: 25,
-        rating: 4.5,
-        description: 'A beautiful floral fragrance'
-      },
-      {
-        id: 2,
-        name: 'Dior Sauvage',
-        brand: 'Dior',
-        category: 'Men',
-        price: 129.99,
-        stock: 42,
-        rating: 4.8,
-        description: 'Fresh and spicy men\'s fragrance'
-      }
-    ]);
-    setLoading(false);
+    fetchProducts();
   }, []);
 
   const fetchProducts = async () => {
     try {
       setLoading(true);
       const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
-      
+
       // Try admin endpoint first, fall back to public products endpoint
       let response = await fetch('http://localhost:8080/api/admin/products?size=100', {
         headers: {
           'Authorization': `Bearer ${token}`
         }
       });
-      
+
       // If admin endpoint fails, use public products endpoint
       if (!response.ok) {
         response = await fetch('http://localhost:8080/api/products?size=100', {
@@ -67,7 +45,7 @@ export default function AdminProducts() {
           }
         });
       }
-      
+
       if (response.ok) {
         const data = await response.json();
         setProducts(data.content || data || []);
@@ -85,7 +63,7 @@ export default function AdminProducts() {
 
   const handleAddProduct = async (e) => {
     e.preventDefault();
-    
+
     // HARD validation - do not proceed if fails
     if (!formData.name?.trim()) {
       toast.error('Product name required');
@@ -103,12 +81,12 @@ export default function AdminProducts() {
       toast.error(`Description: ${formData.description.length}/10 min characters`);
       return;
     }
-    
+
     try {
       setSubmitting(true);
-      
+
       const imageUrl = formData.image_url?.trim() || 'https://via.placeholder.com/300?text=Product';
-      
+
       const payload = {
         name: formData.name.trim(),
         brand: formData.brand?.trim() || 'Unknown',
@@ -116,7 +94,14 @@ export default function AdminProducts() {
         price: parseFloat(formData.price),
         stock: parseInt(formData.stock),
         description: formData.description.trim(),
-        imageUrl: imageUrl
+        imageUrl: imageUrl,
+        variants: formData.variants.map(v => ({
+          size: parseInt(v.size),
+          price: parseFloat(v.price),
+          discountPrice: v.discountPrice ? parseFloat(v.discountPrice) : null,
+          stock: parseInt(v.stock),
+          sku: v.sku || null
+        }))
       };
 
       console.log('Payload:', payload);
@@ -162,10 +147,10 @@ export default function AdminProducts() {
         toast.error('Not authenticated. Please login again.');
         return;
       }
-      
+
       // Remove from UI immediately
       setProducts(prev => prev.filter(p => p.id !== id));
-      
+
       const response = await fetch(`http://localhost:8080/api/admin/products/${id}`, {
         method: 'DELETE',
         headers: {
@@ -173,9 +158,9 @@ export default function AdminProducts() {
           'Content-Type': 'application/json'
         }
       });
-      
+
       console.log('Delete response status:', response.status);
-      
+
       // Accept 200, 204, or any 2xx response
       if (response.ok || response.status === 204) {
         console.log('Product deleted successfully');
@@ -209,13 +194,14 @@ export default function AdminProducts() {
       price: '',
       stock: '',
       description: '',
-      image_url: ''
+      image_url: '',
+      variants: []
     });
   };
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
+      product.brand?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'All' || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -245,11 +231,11 @@ export default function AdminProducts() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
         </div>
-        
+
         <div className="filter-box">
           <Filter size={18} />
-          <select 
-            value={filterCategory} 
+          <select
+            value={filterCategory}
             onChange={(e) => setFilterCategory(e.target.value)}
           >
             {categories.map(cat => (
@@ -298,8 +284,8 @@ export default function AdminProducts() {
                     <span className="rating">★ {product.rating || 0}</span>
                   </td>
                   <td className="actions">
-                    <button 
-                      className="btn-icon delete" 
+                    <button
+                      className="btn-icon delete"
                       title="Delete"
                       onClick={() => handleDeleteProduct(product.id)}
                     >
@@ -324,69 +310,69 @@ export default function AdminProducts() {
                     type="text"
                     placeholder="Product Name *"
                     value={formData.name}
-                    onChange={(e) => setFormData({...formData, name: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     required
                   />
                   {!formData.name && <span className="error-text">Product name is required</span>}
                 </div>
-                
+
                 <div className="form-field">
                   <input
                     type="text"
                     placeholder="Brand"
                     value={formData.brand}
-                    onChange={(e) => setFormData({...formData, brand: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, brand: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="form-field">
                   <select
                     value={formData.category}
-                    onChange={(e) => setFormData({...formData, category: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                   >
                     <option value="Women">Women</option>
                     <option value="Men">Men</option>
                     <option value="Unisex">Unisex</option>
                   </select>
                 </div>
-                
+
                 <div className="form-field">
                   <input
                     type="number"
                     step="0.01"
                     placeholder="Price *"
                     value={formData.price}
-                    onChange={(e) => setFormData({...formData, price: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
                     required
                   />
                   {!formData.price && <span className="error-text">Price is required</span>}
                 </div>
-                
+
                 <div className="form-field">
                   <input
                     type="number"
                     placeholder="Stock *"
                     value={formData.stock}
-                    onChange={(e) => setFormData({...formData, stock: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, stock: e.target.value })}
                     required
                   />
                   {!formData.stock && <span className="error-text">Stock is required</span>}
                 </div>
-                
+
                 <div className="form-field">
                   <input
                     type="url"
                     placeholder="Image URL"
                     value={formData.image_url}
-                    onChange={(e) => setFormData({...formData, image_url: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
                   />
                 </div>
-                
+
                 <div className="form-field">
                   <textarea
                     placeholder="Description (10-2000 characters) *"
                     value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     rows="3"
                   />
                   <div className="field-info">
@@ -397,11 +383,101 @@ export default function AdminProducts() {
                   {formData.description.length < 10 && <span className="error-text">Description must be at least 10 characters</span>}
                   {formData.description.length > 2000 && <span className="error-text">Description cannot exceed 2000 characters</span>}
                 </div>
+
+                <div className="form-field" style={{ gridColumn: '1 / -1' }}>
+                  <h4 style={{ marginBottom: '10px', fontSize: '14px', fontWeight: '600' }}>Product Variants (Optional)</h4>
+                  <p style={{ fontSize: '12px', color: '#666', marginBottom: '10px' }}>Add size variants (3ml, 6ml, 10ml, 12ml) with individual pricing</p>
+
+                  {formData.variants.map((variant, index) => (
+                    <div key={index} style={{ display: 'grid', gridTemplateColumns: '100px 1fr 1fr 100px 1fr auto', gap: '10px', marginBottom: '10px', padding: '10px', border: '1px solid #e0e0e0', borderRadius: '4px' }}>
+                      <select
+                        value={variant.size}
+                        onChange={(e) => {
+                          const newVariants = [...formData.variants];
+                          newVariants[index].size = e.target.value;
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                        style={{ padding: '8px' }}
+                      >
+                        <option value="">Size</option>
+                        <option value="3">3ml</option>
+                        <option value="6">6ml</option>
+                        <option value="10">10ml</option>
+                        <option value="12">12ml</option>
+                      </select>
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Price"
+                        value={variant.price}
+                        onChange={(e) => {
+                          const newVariants = [...formData.variants];
+                          newVariants[index].price = e.target.value;
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                      />
+                      <input
+                        type="number"
+                        step="0.01"
+                        placeholder="Discount Price"
+                        value={variant.discountPrice}
+                        onChange={(e) => {
+                          const newVariants = [...formData.variants];
+                          newVariants[index].discountPrice = e.target.value;
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                      />
+                      <input
+                        type="number"
+                        placeholder="Stock"
+                        value={variant.stock}
+                        onChange={(e) => {
+                          const newVariants = [...formData.variants];
+                          newVariants[index].stock = e.target.value;
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                      />
+                      <input
+                        type="text"
+                        placeholder="SKU (optional)"
+                        value={variant.sku}
+                        onChange={(e) => {
+                          const newVariants = [...formData.variants];
+                          newVariants[index].sku = e.target.value;
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVariants = formData.variants.filter((_, i) => i !== index);
+                          setFormData({ ...formData, variants: newVariants });
+                        }}
+                        style={{ padding: '8px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ))}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFormData({
+                        ...formData,
+                        variants: [...formData.variants, { size: '', price: '', discountPrice: '', stock: '', sku: '' }]
+                      });
+                    }}
+                    style={{ padding: '10px 20px', background: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
+                  >
+                    + Add Variant
+                  </button>
+                </div>
               </div>
               <div className="modal-actions">
                 <button type="button" onClick={() => { setShowModal(false); resetForm(); }}>Cancel</button>
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   disabled={submitting || !formData.name || !formData.price || !formData.stock || formData.description.length < 10 || formData.description.length > 2000}
                 >
                   {submitting ? 'Adding...' : 'Add Product'}

@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, Clock, Truck, Package, XCircle, RotateCcw } from 'lucide-react';
-import api from '../../api/axios';
+import { CheckCircle, Circle, Clock, XCircle, RotateCcw } from 'lucide-react';
+import api from '../api/axios.js';
 
-const OrderTimeline = ({ orderId }) => {
+const OrderTimeline = ({ orderId, currentStatus }) => {
   const [timeline, setTimeline] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -24,137 +24,171 @@ const OrderTimeline = ({ orderId }) => {
     }
   };
 
-  const getStatusIcon = (status) => {
-    const statusLower = status.toLowerCase();
-    const iconProps = { size: 20 };
-
-    switch (statusLower) {
-      case 'placed':
-        return <CheckCircle {...iconProps} className="text-green-500" />;
-      case 'confirmed':
-        return <CheckCircle {...iconProps} className="text-blue-500" />;
-      case 'packed':
-        return <Package {...iconProps} className="text-yellow-500" />;
-      case 'shipped':
-        return <Truck {...iconProps} className="text-purple-500" />;
-      case 'delivered':
-        return <CheckCircle {...iconProps} className="text-green-600" />;
-      case 'cancelled':
-        return <XCircle {...iconProps} className="text-red-500" />;
-      case 'refunded':
-        return <RotateCcw {...iconProps} className="text-orange-500" />;
-      default:
-        return <Clock {...iconProps} className="text-gray-500" />;
-    }
-  };
-
-  const getStatusColor = (status, isActive) => {
-    if (isActive) return 'border-blue-500 bg-blue-50';
-
-    const statusLower = status.toLowerCase();
-    switch (statusLower) {
-      case 'placed':
-      case 'confirmed':
-      case 'delivered':
-        return 'border-green-500 bg-green-50';
-      case 'cancelled':
-      case 'refunded':
-        return 'border-red-500 bg-red-50';
-      default:
-        return 'border-gray-300 bg-gray-50';
-    }
-  };
-
   const formatDateTime = (dateTimeString) => {
     const date = new Date(dateTimeString);
+    const dayOptions = { weekday: 'short', day: 'numeric', month: 'short' };
+    const timeOptions = { hour: '2-digit', minute: '2-digit', hour12: true };
+    
     return {
-      date: date.toLocaleDateString(),
-      time: date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+      fullDate: date.toLocaleDateString('en-IN', dayOptions),
+      time: date.toLocaleTimeString('en-IN', timeOptions)
     };
+  };
+
+  const getStatusDescription = (status) => {
+    const descriptions = {
+      PLACED: [
+        'Your Order has been placed',
+      ],
+      CONFIRMED: [
+        'Seller has confirmed your order',
+        'Order is being prepared'
+      ],
+      PACKED: [
+        'Your item has been packed',
+        'Ready for pickup by delivery partner'
+      ],
+      HANDOVER: [
+        'Your item has been picked up by delivery partner',
+      ],
+      SHIPPED: [
+        'Your item has been shipped',
+        'Package is in transit'
+      ],
+      OUT_FOR_DELIVERY: [
+        'Your item is out for delivery',
+        'Expected delivery today'
+      ],
+      DELIVERED: [
+        'Your item has been delivered',
+      ]
+    };
+    return descriptions[status] || ['Status updated'];
   };
 
   if (loading) {
     return (
       <div className="flex justify-center items-center py-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="text-center py-8">
-        <p className="text-red-600">{error}</p>
+      <div className="text-center py-8 text-red-600">
+        <p>{error}</p>
+      </div>
+    );
+  }
+
+  // Handle cancelled/refunded orders
+  if (currentStatus === 'CANCELLED' || currentStatus === 'REFUNDED') {
+    const cancelEvent = timeline.find(e => e.status === currentStatus);
+    return (
+      <div className="max-w-3xl mx-auto p-6 bg-white rounded-lg border border-red-200">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
+            {currentStatus === 'CANCELLED' ? (
+              <XCircle className="w-6 h-6 text-red-600" />
+            ) : (
+              <RotateCcw className="w-6 h-6 text-orange-600" />
+            )}
+          </div>
+          <div>
+            <h3 className="text-lg font-semibold text-red-700">
+              Order {currentStatus === 'CANCELLED' ? 'Cancelled' : 'Refunded'}
+            </h3>
+            {cancelEvent && (
+              <p className="text-sm text-gray-600">
+                {formatDateTime(cancelEvent.timestamp).fullDate} - {formatDateTime(cancelEvent.timestamp).time}
+              </p>
+            )}
+          </div>
+        </div>
+        {cancelEvent?.notes && (
+          <p className="text-sm text-gray-700 bg-gray-50 rounded p-3 mt-3">
+            {cancelEvent.notes}
+          </p>
+        )}
       </div>
     );
   }
 
   if (timeline.length === 0) {
     return (
-      <div className="text-center py-8">
-        <p className="text-gray-600">No timeline data available</p>
+      <div className="text-center py-8 text-gray-600">
+        <p>No tracking information available</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-2xl mx-auto">
-      <h3 className="text-lg font-semibold mb-6 text-center">Order Timeline</h3>
+    <div className="max-w-3xl mx-auto bg-white rounded-lg border">
+      <div className="p-6 border-b">
+        <h3 className="text-xl font-semibold text-gray-900">Order Tracking</h3>
+      </div>
 
-      <div className="space-y-4">
-        {timeline.map((item, index) => {
-          const { date, time } = formatDateTime(item.timestamp);
-          const isLast = index === timeline.length - 1;
+      <div className="p-6">
+        <div className="relative">
+          {timeline.map((event, index) => {
+            const { fullDate, time } = formatDateTime(event.timestamp);
+            const isLast = index === timeline.length - 1;
+            const descriptions = getStatusDescription(event.status);
 
-          return (
-            <div key={item.id} className="flex items-start space-x-4">
-              {/* Timeline line */}
-              <div className="flex flex-col items-center">
-                <div className={`w-10 h-10 rounded-full border-2 flex items-center justify-center ${getStatusColor(item.status, item.isActive)}`}>
-                  {getStatusIcon(item.status)}
-                </div>
-                {!isLast && (
-                  <div className="w-0.5 h-16 bg-gray-300 mt-2"></div>
-                )}
-              </div>
+            return (
+              <div key={event.id || index} className="relative pb-10">
+                <div className="flex items-start gap-4">
+                  {/* Timeline Line */}
+                  {!isLast && (
+                    <div className="absolute left-3 top-8 w-0.5 h-full bg-green-500" style={{ height: 'calc(100% - 2rem)' }} />
+                  )}
 
-              {/* Content */}
-              <div className="flex-grow pb-8">
-                <div className="bg-white rounded-lg shadow-sm border p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-medium text-gray-900 capitalize">
-                      {item.status.toLowerCase().replace('_', ' ')}
-                    </h4>
-                    {item.isActive && (
-                      <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                        Current Status
+                  {/* Icon */}
+                  <div className="relative flex-shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-green-500 flex items-center justify-center">
+                      <CheckCircle className="w-4 h-4 text-white" />
+                    </div>
+                  </div>
+
+                  {/* Content */}
+                  <div className="flex-grow pt-0">
+                    <div className="flex items-start justify-between mb-1">
+                      <h4 className="font-semibold text-gray-900 text-base">
+                        {event.status.replace('_', ' ').split(' ').map(word => 
+                          word.charAt(0) + word.slice(1).toLowerCase()
+                        ).join(' ')}
+                      </h4>
+                      <span className="text-sm text-gray-600 whitespace-nowrap ml-4">
+                        {fullDate} - {time}
                       </span>
+                    </div>
+
+                    {/* Status descriptions */}
+                    <div className="space-y-1 mt-2">
+                      {descriptions.map((desc, idx) => (
+                        <p key={idx} className="text-sm text-gray-700">
+                          {desc}
+                        </p>
+                      ))}
+                      {event.notes && (
+                        <p className="text-sm text-gray-600 mt-2 italic">
+                          {event.notes}
+                        </p>
+                      )}
+                    </div>
+
+                    {event.updatedBy && event.updatedBy !== 'SYSTEM' && (
+                      <p className="text-xs text-gray-500 mt-2">
+                        Updated by: {event.updatedBy}
+                      </p>
                     )}
                   </div>
-
-                  <div className="text-sm text-gray-600 mb-2">
-                    <div className="flex items-center space-x-4">
-                      <span>{date}</span>
-                      <span>{time}</span>
-                    </div>
-                  </div>
-
-                  {item.updatedBy && item.updatedBy !== 'SYSTEM' && (
-                    <div className="text-sm text-gray-500 mb-2">
-                      Updated by: {item.updatedBy}
-                    </div>
-                  )}
-
-                  {item.notes && (
-                    <div className="text-sm text-gray-700 bg-gray-50 rounded p-2">
-                      {item.notes}
-                    </div>
-                  )}
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
       </div>
     </div>
   );

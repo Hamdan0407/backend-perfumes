@@ -21,31 +21,29 @@ import org.springframework.stereotype.Component;
  * 
  * To create admin in production:
  * 1. Set environment variables: ADMIN_EMAIL and ADMIN_PASSWORD
- * 2. Or use secure CLI tool: java -jar app.jar --create-admin=email@domain.com --password=<secure-password>
+ * 2. Or use secure CLI tool: java -jar app.jar --create-admin=email@domain.com
+ * --password=<secure-password>
  * 3. Never hardcode credentials
  * 4. Use environment-based password rotation
  */
 @Component
-@Profile("!production")  // Only run when NOT in production profile
-@ConditionalOnProperty(
-    name = "app.init.create-demo-admin",
-    havingValue = "true"
-)
+@Profile("!production") // Only run when NOT in production profile
+@ConditionalOnProperty(name = "app.init.create-demo-admin", havingValue = "true")
 @Order(2)
 @RequiredArgsConstructor
 @Slf4j
 public class AdminDataInitializer implements CommandLineRunner {
-    
+
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    
+
     @Override
     public void run(String... args) throws Exception {
         try {
             // Check if admin user already exists
             String adminEmail = "admin@perfumeshop.local";
             String customerEmail = "mohammed@example.com";
-            
+
             if (userRepository.existsByEmail(adminEmail)) {
                 log.info("✓ Default admin user already exists");
             } else {
@@ -63,7 +61,7 @@ public class AdminDataInitializer implements CommandLineRunner {
                         .role(User.Role.ADMIN)
                         .active(true)
                         .build();
-                
+
                 userRepository.save(admin);
                 log.warn("═══════════════════════════════════════════════════════════");
                 log.warn("⚠️  DEMO ADMIN CREATED - FOR TESTING ONLY!");
@@ -73,7 +71,7 @@ public class AdminDataInitializer implements CommandLineRunner {
                 log.warn("⚠️  DO NOT USE THIS ACCOUNT IN PRODUCTION!");
                 log.warn("═══════════════════════════════════════════════════════════");
             }
-            
+
             // Also create a test customer user
             if (!userRepository.existsByEmail(customerEmail)) {
                 User customer = User.builder()
@@ -89,11 +87,32 @@ public class AdminDataInitializer implements CommandLineRunner {
                         .role(User.Role.CUSTOMER)
                         .active(true)
                         .build();
-                
+
                 userRepository.save(customer);
                 log.warn("✓ DEMO CUSTOMER CREATED - Email: {}, Password: password123", customerEmail);
             }
-            
+
+            // Create 'test@example.com' to match Frontend Login.jsx suggestions
+            String testEmail = "test@example.com";
+            if (!userRepository.existsByEmail(testEmail)) {
+                User testUser = User.builder()
+                        .email(testEmail)
+                        .password(passwordEncoder.encode("password1"))
+                        .firstName("Test")
+                        .lastName("User")
+                        .phoneNumber("8888888888")
+                        .address("456 Test Ave")
+                        .city("Bangalore")
+                        .country("India")
+                        .zipCode("560001")
+                        .role(User.Role.CUSTOMER)
+                        .active(true)
+                        .build();
+
+                userRepository.save(testUser);
+                log.warn("✓ TEST USER CREATED - Email: {}, Password: password1", testEmail);
+            }
+
         } catch (Exception e) {
             log.error("Error initializing admin data", e);
         }

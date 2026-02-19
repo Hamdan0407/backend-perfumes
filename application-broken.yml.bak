@@ -1,0 +1,83 @@
+spring:
+  application:
+    name: perfume-shop
+  
+  # Default profile is production (NO more demo by default)
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:production}
+  
+  # ==========================================
+  # BASIC DATABASE CONFIGURATION
+  # Profile-specific configs will override these
+  # ==========================================
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/perfume_shop}
+    username: ${DATABASE_USERNAME:perfume_user}
+    password: ${DATABASE_PASSWORD:}
+    driver-class-name: org.postgresql.Driver
+    
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 3
+      connection-timeout: 10000
+      idle-timeout: 300000
+  
+  # ==========================================
+  # JPA CONFIGURATION - PRODUCTION SAFE
+  # ==========================================
+  jpa:
+    hibernate:
+      ddl-auto: validate  # NEVER auto-create in any environment
+    
+    defer-datasource-initialization: false
+    show-sql: false
+    
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  
+  # ==========================================
+  # MAIL CONFIGURATION
+  # ==========================================
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+  
+  # ==========================================
+  # SERVLET CONFIGURATION
+  # ==========================================
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+
+# ==========================================
+# SERVER CONFIGURATION
+# ==========================================
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never  # Never expose error details
+    include-stacktrace: never
+    include-binding-errors: never
+
+# ==========================================
+# LOGGING CONFIGURATION
+# ==========================================
+logging:
+  level:
+    ROOT: WARN
+    com.perfume.shop: INFO
+    org.springframework: WARN
+    org.springframework.security: WARN
+    org.springframework.security: WARN
+    org.springframework.web.cors: WARN

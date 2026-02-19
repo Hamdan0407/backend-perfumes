@@ -110,7 +110,7 @@ export default function AdminDashboard() {
                 <div className="stat-icon">💰</div>
                 <div className="stat-info">
                   <div className="stat-label">Total Revenue</div>
-                  <div className="stat-value">$45,670</div>
+                  <div className="stat-value">₹45,670</div>
                 </div>
               </div>
             </div>
@@ -140,13 +140,13 @@ export default function AdminDashboard() {
                     <td>ORD-001</td>
                     <td>John Doe</td>
                     <td><span className="badge delivered">Delivered</span></td>
-                    <td>$299.99</td>
+                    <td>₹2,999.99</td>
                   </tr>
                   <tr>
                     <td>ORD-002</td>
                     <td>Jane Smith</td>
                     <td><span className="badge processing">Processing</span></td>
-                    <td>$189.50</td>
+                    <td>₹1,890.50</td>
                   </tr>
                 </tbody>
               </table>

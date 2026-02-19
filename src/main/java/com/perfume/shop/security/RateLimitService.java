@@ -95,6 +95,14 @@ public class RateLimitService {
     }
 
     /**
+     * Get remaining tokens for admin endpoint
+     */
+    public long getAdminRemainingTokens(String clientIp) {
+        Bucket bucket = adminBucketCache.getIfPresent(clientIp);
+        return bucket != null ? bucket.getAvailableTokens() : 50;
+    }
+
+    /**
      * Create bucket for authentication endpoints
      * 5 requests per minute with refill of 5 tokens every minute
      */

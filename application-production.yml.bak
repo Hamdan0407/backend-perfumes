@@ -1,0 +1,245 @@
+spring:
+  application:
+    name: perfume-shop
+  
+  # ==========================================
+  # PRODUCTION DATABASE CONFIGURATION - PostgreSQL
+  # ==========================================
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/perfume_shop}
+    username: ${DATABASE_USERNAME:perfume_user}
+    password: ${DATABASE_PASSWORD:secure_password}
+    driver-class-name: org.postgresql.Driver
+    
+    # Connection Pool Settings - HikariCP
+    hikari:
+      maximum-pool-size: ${DATABASE_POOL_SIZE:20}
+      minimum-idle: 5
+      connection-timeout: ${DATABASE_CONNECTION_TIMEOUT:10000}
+      idle-timeout: ${DATABASE_MAX_IDLE_TIME:300000}
+      max-lifetime: 1800000
+      leak-detection-threshold: 60000
+      connection-test-query: "SELECT 1"
+      auto-commit: true
+  
+  # ==========================================
+  # JPA & HIBERNATE CONFIGURATION - PRODUCTION
+  # ==========================================
+  jpa:
+    hibernate:
+      ddl-auto: validate  # Never auto-create in production
+    
+    defer-datasource-initialization: false
+    show-sql: false
+    
+    properties:
+      hibernate:
+        format_sql: false
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        use_sql_comments: false
+        
+        # Production performance tuning
+        jdbc:
+          batch_size: 50
+          fetch_size: 100
+        order_inserts: true
+        order_updates: true
+        
+        # Connection validation
+        generate_statistics: false
+  
+  # ==========================================
+  # REDIS CONFIGURATION - PRODUCTION
+  # ==========================================
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      database: ${REDIS_DATABASE:0}
+      timeout: 2000ms
+      jedis:
+        pool:
+          max-active: 10
+          max-wait: -1ms
+          max-idle: 10
+          min-idle: 2
+  
+  # Enable caching with Redis
+  cache:
+    type: redis
+    redis:
+      time-to-live: 600000  # 10 minutes default
+      cache-null-values: false
+      key-prefix: perfume_shop_cache::
+      use-key-prefix: true
+  
+  # ==========================================
+  # EMAIL CONFIGURATION - PRODUCTION
+  # ==========================================
+  mail:
+    host: ${MAIL_HOST:smtp.gmail.com}
+    port: ${MAIL_PORT:587}
+    username: ${MAIL_USERNAME}
+    password: ${MAIL_PASSWORD}
+    protocol: smtp
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+          connectiontimeout: 5000
+          timeout: 5000
+          writetimeout: 5000
+    default-encoding: UTF-8
+  
+  # ==========================================
+  # SERVLET CONFIGURATION
+  # ==========================================
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  
+  # ==========================================
+  # SECURITY CONFIGURATION
+  # ==========================================
+  security:
+    require-ssl: true
+
+# ==========================================
+# SERVER CONFIGURATION - PRODUCTION
+# ==========================================
+server:
+  port: ${PORT:8080}
+  error:
+    include-message: never  # Never expose error details in production
+    include-stacktrace: never
+    include-binding-errors: never
+  
+  # Production security headers
+  servlet:
+    session:
+      timeout: 30m
+      cookie:
+        secure: true
+        http-only: true
+        same-site: strict
+
+# ==========================================
+# CUSTOM APPLICATION PROPERTIES - PRODUCTION
+# ==========================================
+app:
+  # Email configuration
+  email:
+    enabled: ${MAIL_ENABLED:true}
+    log-only: ${EMAIL_LOG_ONLY:false}
+    max-retries: ${EMAIL_MAX_RETRIES:3}
+    retry-delay-ms: ${EMAIL_RETRY_DELAY:5000}
+  
+  # Security configuration
+  security:
+    jwt:
+      secret: ${JWT_SECRET}
+      expiration: ${JWT_EXPIRATION:3600000}     # 1 hour for production
+      refresh-expiration: ${JWT_REFRESH_EXPIRATION:604800000}  # 7 days
+      grace-period: ${JWT_GRACE_PERIOD:60000}
+    
+    cors:
+      origins: ${CORS_ORIGINS:https://yourdomain.com}
+      max-age: ${CORS_MAX_AGE:3600}
+    
+    password:
+      encoder-strength: ${PASSWORD_ENCODER_STRENGTH:12}
+  
+  # Payment gateway configuration
+  payment:
+    stripe:
+      enabled: ${STRIPE_ENABLED:false}
+      api-key: ${STRIPE_API_KEY}
+      publishable-key: ${STRIPE_PUBLISHABLE_KEY}
+      webhook-secret: ${STRIPE_WEBHOOK_SECRET}
+    
+    razorpay:
+      enabled: ${RAZORPAY_ENABLED:true}
+      key-id: ${RAZORPAY_KEY_ID}
+      key-secret: ${RAZORPAY_KEY_SECRET}
+      webhook-secret: ${RAZORPAY_WEBHOOK_SECRET}
+      currency: ${RAZORPAY_CURRENCY:INR}
+  
+  # Rate limiting configuration
+  rate-limiting:
+    enabled: true
+    requests-per-minute: ${RATE_LIMIT_RPM:60}
+    requests-per-hour: ${RATE_LIMIT_RPH:1000}
+    burst-capacity: ${RATE_LIMIT_BURST:10}
+  
+  # Caching configuration
+  caching:
+    products:
+      ttl: 3600  # 1 hour
+    categories:
+      ttl: 7200  # 2 hours
+    user-sessions:
+      ttl: 1800  # 30 minutes
+
+# ==========================================
+# LOGGING CONFIGURATION - PRODUCTION
+# ==========================================
+logging:
+  level:
+    ROOT: ${LOG_LEVEL:WARN}
+    com.perfume.shop: ${APP_LOG_LEVEL:INFO}
+    org.springframework: ${SPRING_LOG_LEVEL:WARN}
+    org.springframework.security: ${SPRING_SECURITY_LOG_LEVEL:WARN}
+    org.springframework.web: ${SPRING_WEB_LOG_LEVEL:WARN}
+    org.hibernate: WARN
+    org.hibernate.SQL: ERROR
+    
+  pattern:
+    file: '%d{yyyy-MM-dd HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+    console: '%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n'
+  
+  file:
+    name: ${LOG_DIR:/var/log/perfume-shop}/perfume-shop-production.log
+  
+  logback:
+    rollingpolicy:
+      max-file-size: ${LOG_MAX_FILE_SIZE:100MB}
+      max-history: ${LOG_MAX_BACKUP_INDEX:7}
+      total-size-cap: 1GB
+
+# ==========================================
+# MANAGEMENT & MONITORING - PRODUCTION
+# ==========================================
+management:
+  endpoints:
+    enabled-by-default: false
+    web:
+      exposure:
+        include: health,info,metrics
+      base-path: /actuator
+  
+  endpoint:
+    health:
+      enabled: true
+      show-details: never  # Never expose details in production
+    info:
+      enabled: true
+    metrics:
+      enabled: true
+  
+  health:
+    redis:
+      enabled: true
+    db:
+      enabled: true
+  
+  info:
+    env:
+      enabled: false  # Don't expose environment info
+    git:
+      enabled: false
+    build:
+      enabled: false

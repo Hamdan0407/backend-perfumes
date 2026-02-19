@@ -13,16 +13,18 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class CartResponse {
-    
+
     private Long id;
-    
+
     private List<CartItemResponse> items;
-    
+
     private BigDecimal subtotal;
-    
+
     private BigDecimal tax;
-    
+
+    private BigDecimal shippingCost;
+
     private BigDecimal total;
-    
+
     private Integer itemCount;
 }

@@ -1,10 +1,15 @@
 import { useState, useEffect } from 'react';
 import { Routes, Route, Link, useLocation } from 'react-router-dom';
+import { LayoutDashboard, Package, ShoppingCart, Users, Shield } from 'lucide-react';
 import api from '../../api/axios';
 import Overview from './Overview';
 import ProductManagement from './ProductManagement';
 import OrderManagement from './OrderManagement';
 import UserManagement from './UserManagement';
+import { Card } from '../../components/ui/card';
+import { LoadingSpinner } from '../../components/ui/spinner';
+import { Alert, AlertDescription } from '../../components/ui/alert';
+import { cn } from '../../lib/utils';
 
 export default function Dashboard() {
   const location = useLocation();
@@ -31,7 +36,7 @@ export default function Dashboard() {
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p className="text-center text-gray-600">Loading admin dashboard...</p>
+        <LoadingSpinner text="Loading admin dashboard..." />
       </div>
     );
   }
@@ -39,16 +44,18 @@ export default function Dashboard() {
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <p className="text-center text-red-600">{error}</p>
+        <Alert variant="destructive">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       </div>
     );
   }
 
   const navItems = [
-    { name: 'Overview', path: '', icon: '📊' },
-    { name: 'Products', path: 'products', icon: '📦' },
-    { name: 'Orders', path: 'orders', icon: '🛒' },
-    { name: 'Users', path: 'users', icon: '👥' },
+    { name: 'Overview', path: '', icon: LayoutDashboard },
+    { name: 'Products', path: 'products', icon: Package },
+    { name: 'Orders', path: 'orders', icon: ShoppingCart },
+    { name: 'Users', path: 'users', icon: Users },
   ];
 
   const isActive = (path) => {
@@ -58,16 +65,19 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-background">
       {/* Header */}
-      <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <div className="border-b border-border bg-card">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
           <div className="flex justify-between items-center">
-            <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
+            <div className="flex items-center gap-3">
+              <Shield className="h-8 w-8 text-accent" />
+              <h1 className="text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            </div>
             {adminProfile && (
               <div className="text-right">
-                <p className="text-sm text-gray-600">Welcome back</p>
-                <p className="font-semibold text-gray-900">
+                <p className="text-sm text-muted-foreground">Welcome back</p>
+                <p className="font-semibold text-foreground">
                   {adminProfile.firstName} {adminProfile.lastName}
                 </p>
               </div>
@@ -79,35 +89,39 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="flex gap-8">
           {/* Sidebar Navigation */}
-          <nav className="w-48 flex-shrink-0">
-            <div className="bg-white rounded-lg shadow">
+          <nav className="w-56 flex-shrink-0">
+            <Card>
               <div className="p-4">
-                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-4">
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4">
                   Management
                 </h3>
-                <ul className="space-y-2">
-                  {navItems.map((item) => (
-                    <li key={item.path}>
-                      <Link
-                        to={`/admin${item.path ? '/' + item.path : ''}`}
-                        className={`flex items-center gap-3 px-4 py-2 rounded-lg transition-colors ${
-                          isActive(item.path)
-                            ? 'bg-blue-100 text-blue-700 font-semibold'
-                            : 'text-gray-700 hover:bg-gray-100'
-                        }`}
-                      >
-                        <span className="text-lg">{item.icon}</span>
-                        {item.name}
-                      </Link>
-                    </li>
-                  ))}
+                <ul className="space-y-1">
+                  {navItems.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <li key={item.path}>
+                        <Link
+                          to={`/admin${item.path ? '/' + item.path : ''}`}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm",
+                            isActive(item.path)
+                              ? 'bg-primary text-primary-foreground font-medium'
+                              : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
+                          )}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {item.name}
+                        </Link>
+                      </li>
+                    );
+                  })}
                 </ul>
               </div>
-            </div>
+            </Card>
           </nav>
 
           {/* Main Content */}
-          <div className="flex-1">
+          <div className="flex-1 min-w-0">
             <Routes>
               <Route path="" element={<Overview />} />
               <Route path="products/*" element={<ProductManagement />} />

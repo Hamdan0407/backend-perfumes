@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { 
+import {
   BarChart3, Package, ShoppingCart, Users, Settings, LogOut, Menu, X,
   TrendingUp, DollarSign, Eye, Edit, Trash2, Plus, Search, Bell,
   Calendar, ArrowUpRight, RefreshCw, Save, XCircle, Check, AlertCircle,
@@ -8,18 +8,20 @@ import {
 } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import { useAuthStore } from '../store/authStore';
-import { toast } from 'react-toastify';
+import { useToast } from '../context/ToastContext';
 import api from '../api/axios';
 import '../styles/AdminPanel.css';
 
 export default function AdminPanel() {
   const navigate = useNavigate();
+  const toast = useToast();
   const { user, logout } = useAuthStore();
   const [activeTab, setActiveTab] = useState('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [products, setProducts] = useState([]);
   const [orders, setOrders] = useState([]);
   const [users, setUsers] = useState([]);
+  const [coupons, setCoupons] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -27,11 +29,12 @@ export default function AdminPanel() {
   const [isLive, setIsLive] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState([]);
-  
+
   // Modal states
   const [showProductModal, setShowProductModal] = useState(false);
   const [showOrderModal, setShowOrderModal] = useState(false);
   const [showUserModal, setShowUserModal] = useState(false);
+  const [showCouponModal, setShowCouponModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [modalMode, setModalMode] = useState('add'); // 'add' or 'edit'
@@ -45,11 +48,29 @@ export default function AdminPanel() {
     category: 'Floral',
     brand: '',
     imageUrl: '',
-    size: '100ml',
+    size: '10ml',
     type: 'Eau de Parfum',
     active: true
   });
-  
+
+  // Variants management
+  const [productVariants, setProductVariants] = useState([]);
+
+  // Coupon form
+  const [couponForm, setCouponForm] = useState({
+    code: '',
+    description: '',
+    discountType: 'PERCENTAGE',
+    discountValue: '',
+    minOrderAmount: '',
+    maxDiscountAmount: '',
+    usageLimit: '',
+    usageLimitPerUser: '1',
+    validFrom: '',
+    validUntil: '',
+    active: true
+  });
+
   // Image upload
   const [imagePreview, setImagePreview] = useState(null);
   const [uploadMethod, setUploadMethod] = useState('url'); // 'url' or 'upload'
@@ -62,7 +83,7 @@ export default function AdminPanel() {
     supportPhone: '+91 98765 43210',
     currency: 'INR',
     taxRate: '18',
-    freeShippingThreshold: '2000',
+    freeShippingThreshold: '899',
     defaultShippingCost: '99'
   });
 
@@ -75,7 +96,7 @@ export default function AdminPanel() {
       maximumFractionDigits: 0
     }).format(amount);
   };
-  
+
   // Get status color for badges
   const getStatusColor = (status) => {
     const colors = {
@@ -94,7 +115,7 @@ export default function AdminPanel() {
   // Calculate real-time analytics (memoized)
   const analytics = React.useMemo(() => {
     // Total Revenue (from completed/delivered orders)
-    const completedOrders = orders.filter(o => 
+    const completedOrders = orders.filter(o =>
       ['DELIVERED', 'COMPLETED', 'SHIPPED'].includes(o.status)
     );
     const totalRevenue = orders.reduce((sum, order) => sum + (order.totalAmount || 0), 0);
@@ -153,8 +174,20 @@ export default function AdminPanel() {
   }, [orders, products, users]);
 
   // Categories for dropdown
-  const categories = ['Floral', 'Woody', 'Oriental', 'Fresh', 'Citrus', 'Aromatic', 'Gourmand', 'Aquatic'];
+  const categories = ['perfume', 'attar', 'aroma chemicals'];
   const orderStatuses = ['PLACED', 'CONFIRMED', 'PACKED', 'SHIPPED', 'DELIVERED', 'CANCELLED', 'REFUNDED'];
+
+  // Size options based on category
+  const getSizeOptions = (category) => {
+    if (category === 'attar') {
+      return ['6ml', '12ml'];
+    } else if (category === 'perfume') {
+      return ['30ml', '50ml', '100ml'];
+    } else if (category === 'aroma chemicals') {
+      return ['50ml', '100ml', '250ml', '500ml', '1L'];
+    }
+    return ['30ml', '50ml', '100ml']; // default for perfume
+  };
 
   // Fetch Products
   const fetchProducts = React.useCallback(async () => {
@@ -191,6 +224,51 @@ export default function AdminPanel() {
     }
   }, []);
 
+  // Refresh Dashboard Stats with Double Confirmation
+  const refreshStats = async () => {
+    const firstConfirm = window.confirm(
+      '⚠️ FIRST CONFIRMATION\n\nAre you sure you want to refresh dashboard statistics?\n\nThis will reload:\n• Total Revenue\n• Total Orders\n• Total Customers\n• All Statistics'
+    );
+
+    if (!firstConfirm) return;
+
+    const secondConfirm = window.confirm(
+      '⚠️ SECOND CONFIRMATION\n\nPlease confirm again that you want to refresh all dashboard data.\n\nClick OK to proceed with refresh.'
+    );
+
+    if (!secondConfirm) return;
+
+    setLoading(true);
+    try {
+      // Clear data first for visual feedback
+      setProducts([]);
+      setOrders([]);
+      setUsers([]);
+
+      // Add cache-busting parameter
+      const cacheBuster = `?_t=${Date.now()}&size=100`;
+
+      // Fetch all data without individual loading states
+      const [productsRes, ordersRes, usersRes] = await Promise.all([
+        api.get(`/products${cacheBuster}`),
+        api.get(`/admin/orders${cacheBuster}`).catch(() => api.get(`/orders${cacheBuster}`)),
+        api.get(`/admin/users${cacheBuster}`)
+      ]);
+
+      setProducts(productsRes.data.content || productsRes.data || []);
+      setOrders(ordersRes.data.content || ordersRes.data || []);
+      setUsers(usersRes.data.content || usersRes.data || []);
+      setLastUpdated(new Date());
+
+      toast.success('✓ Dashboard statistics refreshed successfully!');
+    } catch (error) {
+      console.error('Error refreshing stats:', error);
+      toast.error('✗ Failed to refresh statistics');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Fetch Users
   const fetchUsers = React.useCallback(async () => {
     setLoading(true);
@@ -205,11 +283,26 @@ export default function AdminPanel() {
     }
   }, []);
 
+  // Fetch Coupons
+  const fetchCoupons = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await api.get('/admin/coupons');
+      setCoupons(data || []);
+    } catch (err) {
+      console.error('Error loading coupons:', err);
+      toast.error('Failed to load coupons');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   // Fetch all data on mount
   useEffect(() => {
     fetchProducts();
     fetchOrders();
     fetchUsers();
+    fetchCoupons();
   }, []);
 
   // Real-time auto-refresh every 10 seconds for dashboard
@@ -223,7 +316,7 @@ export default function AdminPanel() {
             api.get('/admin/orders?size=100').catch(() => api.get('/orders?size=100')),
             api.get('/admin/users?size=100')
           ]);
-          
+
           if (productsRes.status === 'fulfilled') {
             setProducts(productsRes.value.data.content || productsRes.value.data || []);
           }
@@ -233,7 +326,7 @@ export default function AdminPanel() {
           if (usersRes.status === 'fulfilled') {
             setUsers(usersRes.value.data.content || usersRes.value.data || []);
           }
-          
+
           setLastUpdated(new Date());
         } catch (error) {
           console.error('Auto-refresh error:', error);
@@ -248,7 +341,8 @@ export default function AdminPanel() {
     if (activeTab === 'products') fetchProducts();
     if (activeTab === 'orders') fetchOrders();
     if (activeTab === 'users') fetchUsers();
-  }, [activeTab, fetchProducts, fetchOrders, fetchUsers]);
+    if (activeTab === 'coupons') fetchCoupons();
+  }, [activeTab, fetchProducts, fetchOrders, fetchUsers, fetchCoupons]);
 
   const handleLogout = React.useCallback(() => {
     logout();
@@ -264,7 +358,7 @@ export default function AdminPanel() {
   }, [fetchProducts, fetchOrders, fetchUsers]);
 
   // ==================== PRODUCT OPERATIONS ====================
-  
+
   const openAddProductModal = () => {
     setModalMode('add');
     setProductForm({
@@ -272,10 +366,10 @@ export default function AdminPanel() {
       description: '',
       price: '',
       stock: '',
-      category: 'Floral',
+      category: 'perfume',
       brand: '',
       imageUrl: '',
-      size: '100ml',
+      size: '30ml', // default for perfume
       type: 'Eau de Parfum',
       active: true
     });
@@ -292,13 +386,33 @@ export default function AdminPanel() {
       description: product.description || '',
       price: product.price?.toString() || '',
       stock: product.stock?.toString() || '',
-      category: product.category || 'Floral',
+      category: product.category || 'perfume',
       brand: product.brand || '',
       imageUrl: product.imageUrl || '',
-      size: product.size || '100ml',
+      size: product.size || (product.category === 'attar' ? '6ml' : '30ml'),
       type: product.type || 'Eau de Parfum',
       active: product.active !== false
     });
+    // Load existing variants or create default one
+    if (product.variants && product.variants.length > 0) {
+      setProductVariants(product.variants.map(v => ({
+        id: v.id || Date.now() + Math.random(),
+        size: v.size,
+        price: v.price?.toString() || '',
+        stock: v.stock?.toString() || '',
+        active: v.active !== false
+      })));
+    } else {
+      // Create variant from product data if no variants exist
+      const sizeNum = parseInt(product.size) || 30;
+      setProductVariants([{
+        id: Date.now(),
+        size: sizeNum,
+        price: product.price?.toString() || '',
+        stock: product.stock?.toString() || '',
+        active: true
+      }]);
+    }
     // Set image preview if product has an image
     if (product.imageUrl) {
       setImagePreview(product.imageUrl);
@@ -313,21 +427,43 @@ export default function AdminPanel() {
   const handleProductSubmit = React.useCallback(async (e) => {
     e.preventDefault();
     setLoading(true);
-    
+
+    // Validate variants
+    if (!productVariants || productVariants.length === 0) {
+      toast.error('Please add at least one size variant');
+      setLoading(false);
+      return;
+    }
+
+    // Build variants data
+    const variantsData = productVariants.map(v => ({
+      size: parseInt(v.size) || 30,
+      price: parseFloat(v.price) || parseFloat(productForm.price) || 0,
+      stock: parseInt(v.stock) || 0,
+      active: v.active !== false
+    }));
+
+    // Calculate total stock from all variants
+    const totalStock = variantsData.reduce((sum, v) => sum + v.stock, 0);
+
+    // Use first variant price as main product price
+    const mainPrice = variantsData[0].price;
+
     // Build product data with proper types
     const imageUrl = productForm.imageUrl || '';
     const productData = {
       name: productForm.name.trim(),
       description: productForm.description?.trim() || 'Premium perfume',
-      price: parseFloat(productForm.price) || 0,
-      stock: parseInt(productForm.stock, 10) || 0,
-      category: productForm.category || 'Floral',
+      price: mainPrice,
+      stock: totalStock,
+      category: productForm.category || 'perfume',
       brand: productForm.brand?.trim() || 'Generic',
       imageUrl: imageUrl.startsWith('data:') ? imageUrl : imageUrl.trim(),
-      size: productForm.size || '100ml',
+      size: productForm.size || (productForm.category === 'attar' ? '6ml' : '30ml'),
       type: productForm.type || 'Eau de Parfum',
       active: productForm.active !== false,
-      featured: false
+      featured: false,
+      variants: variantsData
     };
 
     try {
@@ -342,15 +478,41 @@ export default function AdminPanel() {
       fetchProducts();
     } catch (err) {
       console.error('Product save error:', err);
-      const errorMsg = err.response?.data?.message 
-        || err.response?.data?.error 
+      const errorMsg = err.response?.data?.message
+        || err.response?.data?.error
         || (typeof err.response?.data === 'string' ? err.response?.data : null)
         || 'Failed to save product';
       toast.error(errorMsg);
     } finally {
       setLoading(false);
     }
-  }, [productForm, modalMode, selectedItem, fetchProducts]);
+  }, [productForm, productVariants, modalMode, selectedItem, fetchProducts]);
+
+  // Variant management functions
+  const addVariant = () => {
+    const newVariant = {
+      id: Date.now(),
+      size: 30,
+      price: '',
+      stock: '',
+      active: true
+    };
+    setProductVariants([...productVariants, newVariant]);
+  };
+
+  const removeVariant = (variantId) => {
+    if (productVariants.length === 1) {
+      toast.error('Product must have at least one size variant');
+      return;
+    }
+    setProductVariants(productVariants.filter(v => v.id !== variantId));
+  };
+
+  const updateVariant = (variantId, field, value) => {
+    setProductVariants(productVariants.map(v =>
+      v.id === variantId ? { ...v, [field]: value } : v
+    ));
+  };
 
   const confirmDeleteProduct = (product) => {
     setSelectedItem(product);
@@ -373,7 +535,7 @@ export default function AdminPanel() {
   };
 
   // ==================== ORDER OPERATIONS ====================
-  
+
   const openOrderModal = (order) => {
     setSelectedItem(order);
     setShowOrderModal(true);
@@ -392,7 +554,7 @@ export default function AdminPanel() {
   };
 
   // ==================== USER OPERATIONS ====================
-  
+
   const openUserModal = (user) => {
     setSelectedItem(user);
     setShowUserModal(true);
@@ -421,8 +583,122 @@ export default function AdminPanel() {
     }
   };
 
+  // ==================== COUPON OPERATIONS ====================
+
+  const openAddCouponModal = () => {
+    setModalMode('add');
+    const now = new Date();
+    const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, now.getDate());
+    setCouponForm({
+      code: '',
+      description: '',
+      discountType: 'PERCENTAGE',
+      discountValue: '',
+      minOrderAmount: '',
+      maxDiscountAmount: '',
+      maxDiscountAmount: '',
+      usageLimit: '100',
+      usageLimitPerUser: '1',
+      validFrom: now.toISOString().slice(0, 16),
+      validUntil: nextMonth.toISOString().slice(0, 16),
+      active: true
+    });
+    setShowCouponModal(true);
+  };
+
+  const openEditCouponModal = (coupon) => {
+    setModalMode('edit');
+    setSelectedItem(coupon);
+    setCouponForm({
+      code: coupon.code,
+      description: coupon.description,
+      discountType: coupon.discountType,
+      discountValue: coupon.discountValue?.toString() || '',
+      minOrderAmount: coupon.minOrderAmount?.toString() || '',
+      maxDiscountAmount: coupon.maxDiscountAmount?.toString() || '',
+      maxDiscountAmount: coupon.maxDiscountAmount?.toString() || '',
+      usageLimit: coupon.usageLimit?.toString() || '',
+      usageLimitPerUser: coupon.usageLimitPerUser?.toString() || '1',
+      validFrom: new Date(coupon.validFrom).toISOString().slice(0, 16),
+      validUntil: new Date(coupon.validUntil).toISOString().slice(0, 16),
+      active: coupon.active
+    });
+    setShowCouponModal(true);
+  };
+
+  const handleCouponSubmit = React.useCallback(async (e) => {
+    e.preventDefault();
+    setLoading(true);
+
+    const couponData = {
+      code: couponForm.code.toUpperCase().trim(),
+      description: couponForm.description.trim(),
+      discountType: couponForm.discountType,
+      discountValue: parseFloat(couponForm.discountValue) || 0,
+      minOrderAmount: couponForm.minOrderAmount ? parseFloat(couponForm.minOrderAmount) : null,
+      maxDiscountAmount: couponForm.maxDiscountAmount ? parseFloat(couponForm.maxDiscountAmount) : null,
+      maxDiscountAmount: couponForm.maxDiscountAmount ? parseFloat(couponForm.maxDiscountAmount) : null,
+      usageLimit: parseInt(couponForm.usageLimit, 10) || 100,
+      usageLimitPerUser: parseInt(couponForm.usageLimitPerUser, 10) || 1,
+      validFrom: new Date(couponForm.validFrom).toISOString(),
+      validUntil: new Date(couponForm.validUntil).toISOString(),
+      active: couponForm.active !== false
+    };
+
+    try {
+      if (modalMode === 'add') {
+        await api.post('/admin/coupons', couponData);
+        toast.success('Coupon created successfully!');
+      } else {
+        await api.put(`/admin/coupons/${selectedItem.id}`, couponData);
+        toast.success('Coupon updated successfully!');
+      }
+      setShowCouponModal(false);
+      fetchCoupons();
+    } catch (err) {
+      console.error('Coupon save error:', err);
+      const errorMsg = err.response?.data?.message
+        || err.response?.data?.error
+        || 'Failed to save coupon';
+      toast.error(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  }, [couponForm, modalMode, selectedItem, fetchCoupons]);
+
+  const confirmDeleteCoupon = (coupon) => {
+    setSelectedItem(coupon);
+    setShowDeleteConfirm(true);
+  };
+
+  const handleDeleteCoupon = async () => {
+    setLoading(true);
+    try {
+      await api.delete(`/admin/coupons/${selectedItem.id}`);
+      toast.success('Coupon deleted successfully!');
+      setShowDeleteConfirm(false);
+      fetchCoupons();
+    } catch (err) {
+      console.error('Delete error:', err);
+      toast.error('Failed to delete coupon');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleToggleCouponStatus = async (couponId) => {
+    try {
+      await api.patch(`/admin/coupons/${couponId}/toggle`);
+      toast.success('Coupon status updated!');
+      fetchCoupons();
+    } catch (err) {
+      console.error('Coupon toggle error:', err);
+      toast.error('Failed to update coupon status');
+    }
+  };
+
   // ==================== SETTINGS OPERATIONS ====================
-  
+
   const handleSaveSettings = React.useCallback(() => {
     // Save to localStorage for now (in production, this would go to backend)
     localStorage.setItem('storeSettings', JSON.stringify(settingsForm));
@@ -445,26 +721,26 @@ export default function AdminPanel() {
   const handleImageUpload = React.useCallback((e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    
+
     // Validate file type
     if (!file.type.startsWith('image/')) {
       toast.error('Please select an image file');
       return;
     }
-    
+
     // Validate file size (max 5MB)
     const MAX_SIZE = 5 * 1024 * 1024;
     if (file.size > MAX_SIZE) {
       toast.error('Image size must be less than 5MB');
       return;
     }
-    
+
     // Convert to base64 for preview and storage
     const reader = new FileReader();
     reader.onloadend = () => {
       const base64String = reader.result;
       setImagePreview(base64String);
-      setProductForm(prev => ({...prev, imageUrl: base64String}));
+      setProductForm(prev => ({ ...prev, imageUrl: base64String }));
       toast.success('Image uploaded successfully!');
     };
     reader.onerror = () => {
@@ -475,7 +751,7 @@ export default function AdminPanel() {
 
   const removeImage = React.useCallback(() => {
     setImagePreview(null);
-    setProductForm(prev => ({...prev, imageUrl: ''}));
+    setProductForm(prev => ({ ...prev, imageUrl: '' }));
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -485,165 +761,260 @@ export default function AdminPanel() {
   const generateInvoicePDF = (order) => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
-    
-    // Colors
-    const primaryColor = [139, 92, 246]; // Purple
-    const darkColor = [30, 41, 59];
-    const grayColor = [100, 116, 139];
-    
-    // Header Background
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Application Theme Color Palette
+    const primaryColor = [26, 32, 44];      // Deep Slate - hsl(222 47% 11%)
+    const accentColor = [245, 158, 11];     // Warm Gold - hsl(38 92% 50%)
+    const darkColor = [17, 24, 39];         // Text dark
+    const grayColor = [107, 114, 128];      // Muted text
+    const lightGray = [243, 244, 246];      // Light background
+    const secondaryBg = [248, 250, 252];    // Secondary background
+
+    // Header with Primary Background
     doc.setFillColor(...primaryColor);
-    doc.rect(0, 0, pageWidth, 45, 'F');
-    
-    // Company Name
+    doc.rect(0, 0, pageWidth, 55, 'F');
+
+    // Company Branding
     doc.setTextColor(255, 255, 255);
-    doc.setFontSize(28);
+    doc.setFontSize(32);
     doc.setFont('helvetica', 'bold');
-    doc.text('PERFUME SHOP', 20, 25);
-    
-    // Invoice Label
-    doc.setFontSize(12);
+    doc.text('MUWAS', 20, 25);
+
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'normal');
-    doc.text('TAX INVOICE', 20, 35);
-    
-    // Invoice Number (right side)
-    doc.setFontSize(14);
+    doc.text('Luxury Fragrances & Premium Scents', 20, 35);
+
+    // TAX INVOICE Badge (right side)
+    doc.setFillColor(255, 255, 255);
+    const badgeWidth = 55;
+    const badgeX = pageWidth - badgeWidth - 15; // 15 = margin
+    doc.roundedRect(badgeX, 15, badgeWidth, 18, 3, 3, 'F');
+    doc.setTextColor(...primaryColor);
+    doc.setFontSize(11);
     doc.setFont('helvetica', 'bold');
-    doc.text(`#INV-${order.id?.toString().padStart(5, '0')}`, pageWidth - 20, 25, { align: 'right' });
-    doc.setFontSize(10);
+    doc.text('TAX INVOICE', badgeX + (badgeWidth / 2), 27, { align: 'center' });
+
+    // Invoice Details (right side, below badge)
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
+    doc.text(`#${order.orderNumber || order.id}`, pageWidth - 15, 42, { align: 'right' });
     doc.text(new Date(order.createdAt || Date.now()).toLocaleDateString('en-IN', {
       day: '2-digit', month: 'short', year: 'numeric'
-    }), pageWidth - 20, 35, { align: 'right' });
-    
-    // Reset text color
-    doc.setTextColor(...darkColor);
-    
-    // Bill To Section
-    let yPos = 60;
-    doc.setFontSize(10);
+    }), pageWidth - 15, 48, { align: 'right' });
+
+    // Company Contact Bar
+    doc.setFillColor(...lightGray);
+    doc.rect(15, 62, pageWidth - 30, 18, 'F');
     doc.setTextColor(...grayColor);
-    doc.text('BILL TO', 20, yPos);
-    
-    yPos += 8;
-    doc.setTextColor(...darkColor);
-    doc.setFontSize(14);
-    doc.setFont('helvetica', 'bold');
-    doc.text(order.customerName || order.user?.firstName || 'Customer', 20, yPos);
-    
-    yPos += 7;
-    doc.setFontSize(10);
-    doc.setFont('helvetica', 'normal');
-    if (order.shippingAddress) {
-      const address = order.shippingAddress;
-      doc.text(`${address.street || ''}`, 20, yPos);
-      yPos += 5;
-      doc.text(`${address.city || ''}, ${address.state || ''} ${address.zipCode || ''}`, 20, yPos);
-      yPos += 5;
-      doc.text(`${address.country || 'India'}`, 20, yPos);
-    }
-    
-    // Order Status (right side)
-    doc.setFontSize(10);
-    doc.setTextColor(...grayColor);
-    doc.text('ORDER STATUS', pageWidth - 60, 60);
+    doc.setFontSize(8);
+    doc.text('📍 No 3, Modi Ibrahim Street, Ambur, Tamil Nadu 635802', 18, 68);
+    doc.text('📞 +91 9629004158', 18, 73);
+    doc.text('✉ muwas2021@gmail.com', 18, 78);
+    doc.text('🌐 www.muwas.com', pageWidth - 18, 68, { align: 'right' });
+    doc.text('GSTIN: 33AAAAA0000A1Z5', pageWidth - 18, 73, { align: 'right' });
+    doc.text('PAN: AAAAA0000A', pageWidth - 18, 78, { align: 'right' });
+
+    // Bill To & Ship To Section
+    let yPos = 95;
+
+    // Bill To Box (left)
+    doc.setFillColor(...secondaryBg);
+    doc.roundedRect(15, yPos, (pageWidth - 35) / 2, 35, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240); // Border
+    doc.setLineWidth(0.8);
+    doc.roundedRect(15, yPos, (pageWidth - 35) / 2, 35, 3, 3, 'S');
+
     doc.setTextColor(...primaryColor);
-    doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
-    doc.text(order.status || 'PENDING', pageWidth - 60, 70);
-    
-    // Items Table Header
-    yPos = 110;
-    doc.setFillColor(248, 250, 252);
-    doc.rect(15, yPos - 5, pageWidth - 30, 12, 'F');
-    
-    doc.setTextColor(...grayColor);
     doc.setFontSize(9);
     doc.setFont('helvetica', 'bold');
-    doc.text('ITEM', 20, yPos + 3);
-    doc.text('QTY', 110, yPos + 3);
-    doc.text('PRICE', 135, yPos + 3);
-    doc.text('TOTAL', pageWidth - 25, yPos + 3, { align: 'right' });
-    
-    // Items
+    doc.text('👤 BILL TO', 20, yPos + 7);
+
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text(order.customerName || order.user?.firstName || 'Customer', 20, yPos + 15);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...grayColor);
+    doc.text(order.user?.email || '', 20, yPos + 21);
+    if (order.user?.phone) {
+      doc.text(order.user.phone, 20, yPos + 27);
+    }
+
+    // Ship To Box (right)
+    const shipToX = pageWidth / 2 + 2.5;
+    doc.setFillColor(...secondaryBg);
+    doc.roundedRect(shipToX, yPos, (pageWidth - 35) / 2, 35, 3, 3, 'F');
+    doc.setDrawColor(226, 232, 240); // Border
+    doc.roundedRect(shipToX, yPos, (pageWidth - 35) / 2, 35, 3, 3, 'S');
+
+    doc.setTextColor(...accentColor);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('📦 SHIP TO', shipToX + 5, yPos + 7);
+
+    doc.setTextColor(...darkColor);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    const shippingName = order.shippingName || order.customerName || 'Customer';
+    doc.text(shippingName, shipToX + 5, yPos + 15);
+
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...grayColor);
+    if (order.shippingAddress) {
+      doc.text(order.shippingAddress.substring(0, 35), shipToX + 5, yPos + 21);
+    }
+    if (order.shippingCity) {
+      doc.text(`${order.shippingCity}, ${order.shippingCountry || 'India'}`, shipToX + 5, yPos + 27);
+    }
+
+    // Items Table
+    yPos = 145;
+
+    // Table Header with Primary Color
+    doc.setFillColor(...primaryColor);
+    doc.rect(15, yPos, pageWidth - 30, 12, 'F');
+
+    doc.setTextColor(255, 255, 255);
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'bold');
+    doc.text('#', 20, yPos + 8);
+    doc.text('PRODUCT DETAILS', 30, yPos + 8);
+    doc.text('QTY', 115, yPos + 8, { align: 'center' });
+    doc.text('UNIT PRICE', 145, yPos + 8, { align: 'right' });
+    doc.text('AMOUNT', pageWidth - 20, yPos + 8, { align: 'right' });
+
+    // Table Items
     yPos += 18;
     doc.setTextColor(...darkColor);
     doc.setFont('helvetica', 'normal');
-    
+
     const items = order.items || order.orderItems || [];
+    let itemSubtotal = 0;
+
     if (items.length > 0) {
       items.forEach((item, index) => {
         const itemName = item.productName || item.product?.name || `Product ${index + 1}`;
         const qty = item.quantity || 1;
         const price = item.price || item.product?.price || 0;
         const total = qty * price;
-        
-        doc.setFontSize(11);
-        doc.text(itemName.substring(0, 40), 20, yPos);
-        doc.text(qty.toString(), 115, yPos);
-        doc.text(`₹${price.toLocaleString('en-IN')}`, 135, yPos);
-        doc.text(`₹${total.toLocaleString('en-IN')}`, pageWidth - 25, yPos, { align: 'right' });
+        itemSubtotal += total;
+
+        // Alternate row background
+        if (index % 2 === 0) {
+          doc.setFillColor(249, 250, 251);
+          doc.rect(15, yPos - 5, pageWidth - 30, 10, 'F');
+        }
+
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...grayColor);
+        doc.text(`${index + 1}`, 20, yPos + 2);
+
+        doc.setTextColor(...darkColor);
+        doc.setFont('helvetica', 'normal');
+        doc.text(itemName.substring(0, 45), 30, yPos + 2);
+
+        // Quantity Badge
+        doc.setFillColor(229, 231, 235);
+        doc.roundedRect(108, yPos - 3, 14, 6, 2, 2, 'F');
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'bold');
+        doc.text(qty.toString(), 115, yPos + 2, { align: 'center' });
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`₹${price.toLocaleString('en-IN')}`, 145, yPos + 2, { align: 'right' });
+
+        doc.setFont('helvetica', 'bold');
+        doc.text(`₹${total.toLocaleString('en-IN')}`, pageWidth - 20, yPos + 2, { align: 'right' });
+
         yPos += 10;
       });
     } else {
-      doc.text('Order items', 20, yPos);
-      doc.text('1', 115, yPos);
-      doc.text(`₹${(order.totalAmount || 0).toLocaleString('en-IN')}`, 135, yPos);
-      doc.text(`₹${(order.totalAmount || 0).toLocaleString('en-IN')}`, pageWidth - 25, yPos, { align: 'right' });
+      doc.text('1', 20, yPos + 2);
+      doc.text('Order items', 30, yPos + 2);
+      doc.text('1', 115, yPos + 2, { align: 'center' });
+      const amount = order.totalAmount || 0;
+      doc.text(`₹${amount.toLocaleString('en-IN')}`, 145, yPos + 2, { align: 'right' });
+      doc.text(`₹${amount.toLocaleString('en-IN')}`, pageWidth - 20, yPos + 2, { align: 'right' });
+      itemSubtotal = amount;
       yPos += 10;
     }
-    
-    // Divider Line
-    yPos += 5;
-    doc.setDrawColor(226, 232, 240);
-    doc.line(15, yPos, pageWidth - 15, yPos);
-    
+
     // Summary Section
-    yPos += 15;
-    const subtotal = order.totalAmount || 0;
-    const shipping = order.shippingCost || 0;
+    yPos += 10;
+    const summaryX = pageWidth - 95; // Adjusted for better alignment
+    const summaryWidth = 90;
+
+    // Summary Box
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(summaryX - 5, yPos, summaryWidth, 45, 3, 3, 'F');
+    doc.setDrawColor(209, 213, 219);
+    doc.setLineWidth(0.5);
+    doc.roundedRect(summaryX - 5, yPos, summaryWidth, 45, 3, 3, 'S');
+
+    yPos += 8;
+
+    const subtotal = itemSubtotal;
     const tax = Math.round(subtotal * 0.18); // 18% GST
-    const grandTotal = subtotal;
-    
-    doc.setFontSize(10);
+    const shipping = order.shippingCost || 0;
+    const grandTotal = order.totalAmount || (subtotal + shipping);
+
+    doc.setFontSize(9);
     doc.setTextColor(...grayColor);
-    doc.text('Subtotal:', pageWidth - 80, yPos);
+    doc.setFont('helvetica', 'normal');
+    doc.text('Subtotal:', summaryX, yPos);
     doc.setTextColor(...darkColor);
-    doc.text(`₹${(subtotal - tax).toLocaleString('en-IN')}`, pageWidth - 25, yPos, { align: 'right' });
-    
-    yPos += 8;
+    doc.text(`₹${(subtotal - tax).toLocaleString('en-IN')}`, summaryX + summaryWidth - 5, yPos, { align: 'right' });
+
+    yPos += 7;
     doc.setTextColor(...grayColor);
-    doc.text('GST (18%):', pageWidth - 80, yPos);
+    doc.text('GST (18%):', summaryX, yPos);
     doc.setTextColor(...darkColor);
-    doc.text(`₹${tax.toLocaleString('en-IN')}`, pageWidth - 25, yPos, { align: 'right' });
-    
-    yPos += 8;
+    doc.text(`₹${tax.toLocaleString('en-IN')}`, summaryX + summaryWidth - 5, yPos, { align: 'right' });
+
+    yPos += 7;
     doc.setTextColor(...grayColor);
-    doc.text('Shipping:', pageWidth - 80, yPos);
+    doc.text('Shipping:', summaryX, yPos);
     doc.setTextColor(...darkColor);
-    doc.text(shipping > 0 ? `₹${shipping.toLocaleString('en-IN')}` : 'FREE', pageWidth - 25, yPos, { align: 'right' });
-    
-    // Grand Total
-    yPos += 15;
+    doc.text(shipping > 0 ? `₹${shipping.toLocaleString('en-IN')}` : 'FREE', summaryX + summaryWidth - 5, yPos, { align: 'right' });
+
+    // Total Amount with Primary Color
+    yPos += 12;
     doc.setFillColor(...primaryColor);
-    doc.rect(pageWidth - 100, yPos - 7, 85, 18, 'F');
+    doc.roundedRect(summaryX - 5, yPos - 5, summaryWidth, 12, 2, 2, 'F');
     doc.setTextColor(255, 255, 255);
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'bold');
+    doc.text('TOTAL:', summaryX, yPos + 3);
+    doc.setFontSize(13);
+    doc.text(`₹${grandTotal.toLocaleString('en-IN')}`, summaryX + summaryWidth - 5, yPos + 3, { align: 'right' });
+
+    // Footer Section
+    const footerY = pageHeight - 35;
+
+    // Thank You Message
+    doc.setFillColor(...lightGray);
+    doc.roundedRect(15, footerY, pageWidth - 30, 25, 3, 3, 'F');
+
+    doc.setTextColor(...primaryColor);
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
-    doc.text('TOTAL:', pageWidth - 95, yPos + 4);
-    doc.text(`₹${grandTotal.toLocaleString('en-IN')}`, pageWidth - 20, yPos + 4, { align: 'right' });
-    
-    // Footer
+    doc.text('🎉 Thank you for shopping with us!', pageWidth / 2, footerY + 8, { align: 'center' });
+
     doc.setTextColor(...grayColor);
-    doc.setFontSize(9);
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
-    const footerY = doc.internal.pageSize.getHeight() - 25;
-    doc.text('Thank you for shopping with Perfume Shop!', pageWidth / 2, footerY, { align: 'center' });
-    doc.text('For queries: support@perfumeshop.com | +91 98765 43210', pageWidth / 2, footerY + 6, { align: 'center' });
-    doc.text('This is a computer generated invoice', pageWidth / 2, footerY + 12, { align: 'center' });
-    
+    doc.text('We appreciate your business and look forward to serving you again', pageWidth / 2, footerY + 14, { align: 'center' });
+    doc.text('Need help? Contact us at muwas2021@yahoo.com or call +91 9894722186', pageWidth / 2, footerY + 19, { align: 'center' });
+
     // Save the PDF
-    doc.save(`Invoice-${order.id}.pdf`);
+    doc.save(`Invoice-${order.orderNumber || order.id}.pdf`);
     toast.success('Invoice downloaded successfully!');
   };
 
@@ -651,7 +1022,7 @@ export default function AdminPanel() {
   const filteredProducts = React.useMemo(() => {
     if (!searchQuery) return products;
     const query = searchQuery.toLowerCase();
-    return products.filter(p => 
+    return products.filter(p =>
       p.name?.toLowerCase().includes(query) ||
       p.category?.toLowerCase().includes(query) ||
       p.brand?.toLowerCase().includes(query)
@@ -681,7 +1052,7 @@ export default function AdminPanel() {
   // Generate notifications (memoized)
   const currentNotifications = React.useMemo(() => {
     const notifs = [];
-    
+
     // Pending orders
     if (analytics.pendingOrders > 0) {
       notifs.push({
@@ -693,7 +1064,7 @@ export default function AdminPanel() {
         action: () => { setActiveTab('orders'); setSearchQuery('PENDING'); setShowNotifications(false); }
       });
     }
-    
+
     // Processing orders
     if (analytics.processingOrders > 0) {
       notifs.push({
@@ -705,7 +1076,7 @@ export default function AdminPanel() {
         action: () => { setActiveTab('orders'); setSearchQuery('PROCESSING'); setShowNotifications(false); }
       });
     }
-    
+
     // Low stock products
     if (analytics.lowStockProducts.length > 0) {
       notifs.push({
@@ -713,12 +1084,12 @@ export default function AdminPanel() {
         type: 'warning',
         icon: '⚠️',
         title: `${analytics.lowStockProducts.length} Low Stock Items`,
-        message: analytics.lowStockProducts.slice(0, 2).map(p => p.name).join(', ') + 
-                 (analytics.lowStockProducts.length > 2 ? '...' : ''),
+        message: analytics.lowStockProducts.slice(0, 2).map(p => p.name).join(', ') +
+          (analytics.lowStockProducts.length > 2 ? '...' : ''),
         action: () => { setActiveTab('products'); setShowNotifications(false); }
       });
     }
-    
+
     // Out of stock products
     if (analytics.outOfStockProducts.length > 0) {
       notifs.push({
@@ -730,7 +1101,7 @@ export default function AdminPanel() {
         action: () => { setActiveTab('products'); setShowNotifications(false); }
       });
     }
-    
+
     // Shipped orders
     if (analytics.shippedOrders > 0) {
       notifs.push({
@@ -742,7 +1113,7 @@ export default function AdminPanel() {
         action: () => { setActiveTab('orders'); setSearchQuery('SHIPPED'); setShowNotifications(false); }
       });
     }
-    
+
     // Today's performance
     if (analytics.todayOrders > 0) {
       notifs.push({
@@ -754,11 +1125,11 @@ export default function AdminPanel() {
         action: () => { setActiveTab('dashboard'); setShowNotifications(false); }
       });
     }
-    
+
     return notifs;
   }, [analytics, formatINR]);
 
-  const notificationCount = React.useMemo(() => 
+  const notificationCount = React.useMemo(() =>
     currentNotifications.filter(n => n.type === 'warning' || n.type === 'danger').length,
     [currentNotifications]
   );
@@ -788,7 +1159,7 @@ export default function AdminPanel() {
             <div className="logo-icon">
               <BarChart3 size={24} />
             </div>
-            {sidebarOpen && <span className="brand-text">PerfumeAdmin</span>}
+            {sidebarOpen && <span className="brand-text">Muwas Admin</span>}
           </div>
           <button className="sidebar-toggle" onClick={() => setSidebarOpen(!sidebarOpen)}>
             {sidebarOpen ? <X size={18} /> : <Menu size={18} />}
@@ -798,7 +1169,7 @@ export default function AdminPanel() {
         <nav className="sidebar-nav">
           <div className="nav-section">
             {sidebarOpen && <span className="nav-section-title">Main Menu</span>}
-            
+
             <button
               className={`nav-item ${activeTab === 'dashboard' ? 'active' : ''}`}
               onClick={() => setActiveTab('dashboard')}
@@ -806,7 +1177,7 @@ export default function AdminPanel() {
               <BarChart3 size={20} />
               {sidebarOpen && <span>Dashboard</span>}
             </button>
-            
+
             <button
               className={`nav-item ${activeTab === 'products' ? 'active' : ''}`}
               onClick={() => setActiveTab('products')}
@@ -815,7 +1186,7 @@ export default function AdminPanel() {
               {sidebarOpen && <span>Products</span>}
               {sidebarOpen && <span className="nav-badge">{products.length}</span>}
             </button>
-            
+
             <button
               className={`nav-item ${activeTab === 'orders' ? 'active' : ''}`}
               onClick={() => setActiveTab('orders')}
@@ -826,7 +1197,7 @@ export default function AdminPanel() {
                 <span className="nav-badge warning">{analytics.pendingOrders}</span>
               )}
             </button>
-            
+
             <button
               className={`nav-item ${activeTab === 'users' ? 'active' : ''}`}
               onClick={() => setActiveTab('users')}
@@ -834,11 +1205,27 @@ export default function AdminPanel() {
               <Users size={20} />
               {sidebarOpen && <span>Customers</span>}
             </button>
+
+            <button
+              className={`nav-item ${activeTab === 'coupons' ? 'active' : ''}`}
+              onClick={() => setActiveTab('coupons')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+                <polyline points="7.5 4.21 12 6.81 16.5 4.21"></polyline>
+                <polyline points="7.5 19.79 7.5 14.6 3 12"></polyline>
+                <polyline points="21 12 16.5 14.6 16.5 19.79"></polyline>
+                <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+                <line x1="12" y1="22.08" x2="12" y2="12"></line>
+              </svg>
+              {sidebarOpen && <span>Coupons</span>}
+              {sidebarOpen && <span className="nav-badge">{coupons.length}</span>}
+            </button>
           </div>
 
           <div className="nav-section">
             {sidebarOpen && <span className="nav-section-title">Settings</span>}
-            
+
             <button
               className={`nav-item ${activeTab === 'settings' ? 'active' : ''}`}
               onClick={() => setActiveTab('settings')}
@@ -878,6 +1265,7 @@ export default function AdminPanel() {
               {activeTab === 'products' && '📦 Products'}
               {activeTab === 'orders' && '🛒 Orders'}
               {activeTab === 'users' && '👥 Customers'}
+              {activeTab === 'coupons' && '🎟️ Coupons'}
               {activeTab === 'settings' && '⚙️ Settings'}
             </h1>
           </div>
@@ -885,8 +1273,8 @@ export default function AdminPanel() {
             {/* Enhanced Search Box */}
             <div className={`search-box ${searchQuery ? 'has-value' : ''}`}>
               <Search size={18} className="search-icon" />
-              <input 
-                type="text" 
+              <input
+                type="text"
                 placeholder={`Search ${activeTab}...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -902,11 +1290,11 @@ export default function AdminPanel() {
                 </>
               )}
             </div>
-            
+
             {/* Notifications Bell */}
             <div className="notification-wrapper">
-              <button 
-                className={`topbar-btn notification-btn ${showNotifications ? 'active' : ''}`} 
+              <button
+                className={`topbar-btn notification-btn ${showNotifications ? 'active' : ''}`}
                 title="Notifications"
                 onClick={() => setShowNotifications(!showNotifications)}
               >
@@ -915,7 +1303,7 @@ export default function AdminPanel() {
                   <span className="notification-badge">{notificationCount}</span>
                 )}
               </button>
-              
+
               {/* Notifications Dropdown */}
               {showNotifications && (
                 <div className="notifications-dropdown">
@@ -932,8 +1320,8 @@ export default function AdminPanel() {
                       </div>
                     ) : (
                       currentNotifications.map((notif) => (
-                        <div 
-                          key={notif.id} 
+                        <div
+                          key={notif.id}
                           className={`notification-item ${notif.type}`}
                           onClick={notif.action}
                         >
@@ -955,13 +1343,13 @@ export default function AdminPanel() {
                 </div>
               )}
             </div>
-            
+
             <button className="topbar-btn refresh" onClick={refreshAll} title="Refresh Data">
               <RefreshCw size={20} />
             </button>
           </div>
         </header>
-        
+
         {/* Click outside to close notifications */}
         {showNotifications && (
           <div className="notification-overlay" onClick={() => setShowNotifications(false)}></div>
@@ -976,7 +1364,7 @@ export default function AdminPanel() {
               <button onClick={() => setError(null)}>×</button>
             </div>
           )}
-          
+
           {/* ==================== DASHBOARD ==================== */}
           {activeTab === 'dashboard' && (
             <div className="dashboard">
@@ -985,7 +1373,7 @@ export default function AdminPanel() {
                 <div className="live-status">
                   <span className={`live-indicator ${isLive ? 'active' : ''}`}></span>
                   <span className="live-text">{isLive ? 'LIVE' : 'PAUSED'}</span>
-                  <button 
+                  <button
                     className={`live-toggle ${isLive ? 'active' : ''}`}
                     onClick={() => setIsLive(!isLive)}
                     title={isLive ? 'Pause auto-refresh' : 'Enable auto-refresh'}
@@ -996,6 +1384,32 @@ export default function AdminPanel() {
                 <div className="last-updated">
                   Last updated: {lastUpdated.toLocaleTimeString('en-IN')}
                 </div>
+                <button
+                  onClick={refreshStats}
+                  disabled={loading}
+                  className="refresh-stats-btn"
+                  title="Manually refresh all statistics (requires double confirmation)"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px 16px',
+                    backgroundColor: '#7c3aed',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: loading ? 'not-allowed' : 'pointer',
+                    opacity: loading ? 0.6 : 1,
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    transition: 'all 0.2s'
+                  }}
+                  onMouseEnter={(e) => !loading && (e.target.style.backgroundColor = '#6d28d9')}
+                  onMouseLeave={(e) => (e.target.style.backgroundColor = '#7c3aed')}
+                >
+                  <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+                  {loading ? 'Refreshing...' : 'Refresh Stats'}
+                </button>
               </div>
 
               {/* Main Stats Row */}
@@ -1336,7 +1750,7 @@ export default function AdminPanel() {
                           </td>
                           <td className="price">{formatINR(order.totalAmount)}</td>
                           <td>
-                            <select 
+                            <select
                               className={`status-select ${getStatusColor(order.status)}`}
                               value={order.status || 'PLACED'}
                               onChange={(e) => handleUpdateOrderStatus(order.id, e.target.value)}
@@ -1416,7 +1830,7 @@ export default function AdminPanel() {
                             </span>
                           </td>
                           <td>
-                            <button 
+                            <button
                               className={`status-toggle ${u.active ? 'active' : 'inactive'}`}
                               onClick={() => handleToggleUserStatus(u.id, u.active)}
                             >
@@ -1449,6 +1863,151 @@ export default function AdminPanel() {
             </div>
           )}
 
+          {/* ==================== COUPONS ==================== */}
+          {activeTab === 'coupons' && (
+            <div className="section">
+              <div className="section-header">
+                <div className="section-title">
+                  <h2>Discount Coupons</h2>
+                  <span className="subtitle">{coupons.length} total coupons</span>
+                </div>
+                <button
+                  onClick={openAddCouponModal}
+                  className="btn btn-primary"
+                >
+                  <Plus size={18} />
+                  Add Coupon
+                </button>
+              </div>
+
+              {loading ? (
+                <div className="loading-state">
+                  <div className="spinner"></div>
+                  <p>Loading coupons...</p>
+                </div>
+              ) : coupons.length > 0 ? (
+                <div className="table-container">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Discount</th>
+                        <th>Usage</th>
+                        <th>Valid Period</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {coupons.map(coupon => {
+                        const isExpired = new Date(coupon.validUntil) < new Date();
+                        const isUsedUp = coupon.usedCount >= coupon.usageLimit;
+                        const isActive = coupon.active && !isExpired && !isUsedUp;
+
+                        return (
+                          <tr key={coupon.id} className={!isActive ? 'inactive-row' : ''}>
+                            <td>
+                              <span className="coupon-code">{coupon.code}</span>
+                            </td>
+                            <td className="description-cell">{coupon.description}</td>
+                            <td>
+                              <span className="discount-badge">
+                                {coupon.discountType === 'PERCENTAGE'
+                                  ? `${coupon.discountValue}% OFF`
+                                  : `₹${coupon.discountValue} OFF`
+                                }
+                              </span>
+                            </td>
+                            <td>
+                              <div className="usage-info">
+                                <span className={`usage-count ${isUsedUp ? 'used-up' : ''}`}>
+                                  {coupon.usedCount}/{coupon.usageLimit}
+                                </span>
+                                {coupon.remainingUses > 0 && (
+                                  <span className="remaining">{coupon.remainingUses} left</span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="date-cell">
+                              <div className="date-range">
+                                <span>{new Date(coupon.validFrom).toLocaleDateString('en-IN')}</span>
+                                <span>to</span>
+                                <span className={isExpired ? 'expired' : ''}>
+                                  {new Date(coupon.validUntil).toLocaleDateString('en-IN')}
+                                </span>
+                              </div>
+                            </td>
+                            <td>
+                              <button
+                                className={`status-toggle ${isActive ? 'active' : 'inactive'}`}
+                                onClick={() => handleToggleCouponStatus(coupon.id)}
+                                disabled={isExpired || isUsedUp}
+                              >
+                                {isExpired ? (
+                                  <>
+                                    <XCircle size={14} />
+                                    Expired
+                                  </>
+                                ) : isUsedUp ? (
+                                  <>
+                                    <XCircle size={14} />
+                                    Used Up
+                                  </>
+                                ) : coupon.active ? (
+                                  <>
+                                    <Check size={14} />
+                                    Active
+                                  </>
+                                ) : (
+                                  <>
+                                    <XCircle size={14} />
+                                    Inactive
+                                  </>
+                                )}
+                              </button>
+                            </td>
+                            <td>
+                              <div className="action-buttons">
+                                <button
+                                  className="action-btn edit"
+                                  title="Edit Coupon"
+                                  onClick={() => openEditCouponModal(coupon)}
+                                >
+                                  <Edit size={16} />
+                                </button>
+                                <button
+                                  className="action-btn delete"
+                                  title="Delete Coupon"
+                                  onClick={() => confirmDeleteCoupon(coupon)}
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="empty-state">
+                  <Package size={48} className="text-gray-300 mb-4 mx-auto" />
+                  <h3 className="text-lg font-medium text-gray-900 mb-2">No Coupons Created</h3>
+                  <p className="text-gray-500 mb-6">Create your first discount coupon to offer special deals to customers</p>
+                  <button
+                    onClick={openAddCouponModal}
+                    className="btn btn-primary"
+                  >
+                    <Plus size={18} />
+                    Create First Coupon
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* ==================== SETTINGS ==================== */}
           {activeTab === 'settings' && (
             <div className="section settings-section">
@@ -1464,29 +2023,29 @@ export default function AdminPanel() {
                   <h3>🏪 General Settings</h3>
                   <div className="form-group">
                     <label>Store Name</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="form-input"
                       value={settingsForm.storeName}
-                      onChange={(e) => setSettingsForm({...settingsForm, storeName: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, storeName: e.target.value })}
                     />
                   </div>
                   <div className="form-group">
                     <label>Store Email</label>
-                    <input 
-                      type="email" 
+                    <input
+                      type="email"
                       className="form-input"
                       value={settingsForm.storeEmail}
-                      onChange={(e) => setSettingsForm({...settingsForm, storeEmail: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, storeEmail: e.target.value })}
                     />
                   </div>
                   <div className="form-group">
                     <label>Support Phone</label>
-                    <input 
-                      type="tel" 
+                    <input
+                      type="tel"
                       className="form-input"
                       value={settingsForm.supportPhone}
-                      onChange={(e) => setSettingsForm({...settingsForm, supportPhone: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, supportPhone: e.target.value })}
                     />
                   </div>
                 </div>
@@ -1495,10 +2054,10 @@ export default function AdminPanel() {
                   <h3>💳 Payment Settings</h3>
                   <div className="form-group">
                     <label>Currency</label>
-                    <select 
+                    <select
                       className="form-input"
                       value={settingsForm.currency}
-                      onChange={(e) => setSettingsForm({...settingsForm, currency: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, currency: e.target.value })}
                     >
                       <option value="USD">USD - US Dollar</option>
                       <option value="EUR">EUR - Euro</option>
@@ -1507,11 +2066,11 @@ export default function AdminPanel() {
                   </div>
                   <div className="form-group">
                     <label>Tax Rate (%)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       className="form-input"
                       value={settingsForm.taxRate}
-                      onChange={(e) => setSettingsForm({...settingsForm, taxRate: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, taxRate: e.target.value })}
                     />
                   </div>
                 </div>
@@ -1520,21 +2079,21 @@ export default function AdminPanel() {
                   <h3>📦 Shipping Settings</h3>
                   <div className="form-group">
                     <label>Free Shipping Threshold ($)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       className="form-input"
                       value={settingsForm.freeShippingThreshold}
-                      onChange={(e) => setSettingsForm({...settingsForm, freeShippingThreshold: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, freeShippingThreshold: e.target.value })}
                     />
                   </div>
                   <div className="form-group">
                     <label>Default Shipping Cost ($)</label>
-                    <input 
-                      type="number" 
+                    <input
+                      type="number"
                       step="0.01"
                       className="form-input"
                       value={settingsForm.defaultShippingCost}
-                      onChange={(e) => setSettingsForm({...settingsForm, defaultShippingCost: e.target.value})}
+                      onChange={(e) => setSettingsForm({ ...settingsForm, defaultShippingCost: e.target.value })}
                     />
                   </div>
                 </div>
@@ -1572,68 +2131,136 @@ export default function AdminPanel() {
                 <div className="form-row">
                   <div className="form-group">
                     <label>Product Name *</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="form-input"
                       value={productForm.name}
-                      onChange={(e) => setProductForm({...productForm, name: e.target.value})}
+                      onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
                       required
                     />
                   </div>
                   <div className="form-group">
                     <label>Brand</label>
-                    <input 
-                      type="text" 
+                    <input
+                      type="text"
                       className="form-input"
                       value={productForm.brand}
-                      onChange={(e) => setProductForm({...productForm, brand: e.target.value})}
+                      onChange={(e) => setProductForm({ ...productForm, brand: e.target.value })}
                     />
                   </div>
                 </div>
 
                 <div className="form-group">
-                  <label>Description</label>
-                  <textarea 
+                  <label htmlFor="product-description">Description</label>
+                  <textarea
+                    id="product-description"
+                    name="description"
                     className="form-input"
                     rows={3}
                     value={productForm.description}
-                    onChange={(e) => setProductForm({...productForm, description: e.target.value})}
+                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
                   />
                 </div>
 
-                <div className="form-row">
-                  <div className="form-group">
-                    <label>Price ($) *</label>
-                    <input 
-                      type="number" 
-                      step="0.01"
-                      min="0"
-                      className="form-input"
-                      value={productForm.price}
-                      onChange={(e) => setProductForm({...productForm, price: e.target.value})}
-                      required
-                    />
+                {/* Product Variants Section */}
+                <div className="form-group">
+
+                  <div className="variants-container" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {productVariants.map((variant, index) => (
+                      <div key={variant.id} className="variant-item" style={{
+                        border: productVariants.length > 1 ? '1px solid #ddd' : 'none',
+                        borderRadius: '8px',
+                        padding: productVariants.length > 1 ? '16px' : '0',
+                        backgroundColor: productVariants.length > 1 ? '#f9f9f9' : 'transparent'
+                      }}>
+                        {productVariants.length > 1 && (
+                          <div className="flex items-center justify-between mb-2">
+                            <span style={{ fontWeight: '600', color: '#333' }}>Variant {index + 1}</span>
+                            <button
+                              type="button"
+                              onClick={() => removeVariant(variant.id)}
+                              style={{
+                                background: 'none',
+                                border: 'none',
+                                color: '#dc3545',
+                                cursor: 'pointer',
+                                padding: '4px'
+                              }}
+                              title="Remove variant"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          </div>
+                        )}
+                        <div className="form-row" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                          <div>
+                            <label style={{ fontSize: '13px', marginBottom: '4px', display: 'block' }}>Size (ml)</label>
+                            <input
+                              type="number"
+                              className="form-input"
+                              value={variant.size}
+                              onChange={(e) => updateVariant(variant.id, 'size', parseInt(e.target.value) || 0)}
+                              min="1"
+                              required
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '13px', marginBottom: '4px', display: 'block' }}>Price (₹)</label>
+                            <input
+                              type="number"
+                              step="0.01"
+                              className="form-input"
+                              value={variant.price}
+                              onChange={(e) => updateVariant(variant.id, 'price', e.target.value)}
+                              min="0"
+                              required
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                          <div>
+                            <label style={{ fontSize: '13px', marginBottom: '4px', display: 'block' }}>Stock</label>
+                            <input
+                              type="number"
+                              className="form-input"
+                              value={variant.stock}
+                              onChange={(e) => updateVariant(variant.id, 'stock', e.target.value)}
+                              min="0"
+                              required
+                              style={{ width: '100%' }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <div className="form-group">
-                    <label>Stock *</label>
-                    <input 
-                      type="number" 
-                      min="0"
-                      className="form-input"
-                      value={productForm.stock}
-                      onChange={(e) => setProductForm({...productForm, stock: e.target.value})}
-                      required
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    className="btn-link mt-2"
+                    onClick={addVariant}
+                    style={{ fontSize: '13px', display: 'flex', alignItems: 'center', gap: '4px' }}
+                  >
+                    <Plus size={14} />
+                    Add another size
+                  </button>
+                  <p style={{ fontSize: '13px', color: '#666', marginTop: '8px' }}>
+                    Add different sizes for this product. Each size can have its own price and stock level.
+                  </p>
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
                     <label>Category *</label>
-                    <select 
+                    <select
                       className="form-input"
                       value={productForm.category}
-                      onChange={(e) => setProductForm({...productForm, category: e.target.value})}
+                      onChange={(e) => {
+                        const newCategory = e.target.value;
+                        let defaultSize = '30ml'; // perfume default
+                        if (newCategory === 'attar') defaultSize = '6ml';
+                        else if (newCategory === 'aroma chemicals') defaultSize = '50ml';
+                        setProductForm({ ...productForm, category: newCategory, size: defaultSize });
+                      }}
                       required
                     >
                       {categories.map(cat => (
@@ -1641,30 +2268,16 @@ export default function AdminPanel() {
                       ))}
                     </select>
                   </div>
-                  <div className="form-group">
-                    <label>Size</label>
-                    <select 
-                      className="form-input"
-                      value={productForm.size}
-                      onChange={(e) => setProductForm({...productForm, size: e.target.value})}
-                    >
-                      <option value="30ml">30ml</option>
-                      <option value="50ml">50ml</option>
-                      <option value="75ml">75ml</option>
-                      <option value="100ml">100ml</option>
-                      <option value="150ml">150ml</option>
-                      <option value="200ml">200ml</option>
-                    </select>
-                  </div>
+
                 </div>
 
                 <div className="form-row">
                   <div className="form-group">
                     <label>Type</label>
-                    <select 
+                    <select
                       className="form-input"
                       value={productForm.type}
-                      onChange={(e) => setProductForm({...productForm, type: e.target.value})}
+                      onChange={(e) => setProductForm({ ...productForm, type: e.target.value })}
                     >
                       <option value="Eau de Parfum">Eau de Parfum</option>
                       <option value="Eau de Toilette">Eau de Toilette</option>
@@ -1675,10 +2288,10 @@ export default function AdminPanel() {
                   </div>
                   <div className="form-group">
                     <label>Status</label>
-                    <select 
+                    <select
                       className="form-input"
                       value={productForm.active ? 'active' : 'inactive'}
-                      onChange={(e) => setProductForm({...productForm, active: e.target.value === 'active'})}
+                      onChange={(e) => setProductForm({ ...productForm, active: e.target.value === 'active' })}
                     >
                       <option value="active">✓ Active</option>
                       <option value="inactive">✗ Inactive</option>
@@ -1688,10 +2301,10 @@ export default function AdminPanel() {
 
                 <div className="form-group">
                   <label>Product Image</label>
-                  
+
                   {/* Upload Method Toggle */}
                   <div className="upload-toggle">
-                    <button 
+                    <button
                       type="button"
                       className={`toggle-btn ${uploadMethod === 'upload' ? 'active' : ''}`}
                       onClick={() => setUploadMethod('upload')}
@@ -1699,7 +2312,7 @@ export default function AdminPanel() {
                       <Upload size={16} />
                       Upload Image
                     </button>
-                    <button 
+                    <button
                       type="button"
                       className={`toggle-btn ${uploadMethod === 'url' ? 'active' : ''}`}
                       onClick={() => setUploadMethod('url')}
@@ -1708,11 +2321,11 @@ export default function AdminPanel() {
                       Image URL
                     </button>
                   </div>
-                  
+
                   {uploadMethod === 'upload' ? (
                     <div className="image-upload-area">
-                      <input 
-                        type="file" 
+                      <input
+                        type="file"
                         ref={fileInputRef}
                         accept="image/*"
                         onChange={handleImageUpload}
@@ -1727,9 +2340,9 @@ export default function AdminPanel() {
                         </label>
                       ) : (
                         <div className="uploaded-image-preview">
-                          <img 
-                            src={imagePreview || productForm.imageUrl} 
-                            alt="Preview" 
+                          <img
+                            src={imagePreview || productForm.imageUrl}
+                            alt="Preview"
                           />
                           <div className="image-overlay">
                             <button type="button" className="remove-image-btn" onClick={removeImage}>
@@ -1746,18 +2359,18 @@ export default function AdminPanel() {
                     </div>
                   ) : (
                     <>
-                      <input 
-                        type="text" 
+                      <input
+                        type="text"
                         className="form-input"
                         placeholder="https://example.com/image.jpg"
                         value={productForm.imageUrl}
-                        onChange={(e) => setProductForm({...productForm, imageUrl: e.target.value})}
+                        onChange={(e) => setProductForm({ ...productForm, imageUrl: e.target.value })}
                       />
                       {productForm.imageUrl && (
                         <div className="image-preview">
-                          <img 
-                            src={productForm.imageUrl} 
-                            alt="Preview" 
+                          <img
+                            src={productForm.imageUrl}
+                            alt="Preview"
                             onError={(e) => e.target.style.display = 'none'}
                             onLoad={(e) => e.target.style.display = 'block'}
                           />
@@ -1794,11 +2407,24 @@ export default function AdminPanel() {
               <div className="order-details">
                 <div className="detail-row">
                   <span className="label">Customer:</span>
-                  <span className="value">{selectedItem.customerName || selectedItem.user?.firstName || 'N/A'}</span>
+                  <span className="value">
+                    {selectedItem.customerName ||
+                      (selectedItem.user ? `${selectedItem.user.firstName} ${selectedItem.user.lastName || ''}` : 'N/A')}
+                  </span>
                 </div>
                 <div className="detail-row">
                   <span className="label">Email:</span>
-                  <span className="value">{selectedItem.customerEmail || selectedItem.user?.email || 'N/A'}</span>
+                  <span className="value">
+                    {selectedItem.customerEmail || selectedItem.user?.email || 'N/A'}
+                  </span>
+                </div>
+                <div className="detail-row">
+                  <span className="label">Ship To:</span>
+                  <span className="value">
+                    {selectedItem.shippingRecipientName ||
+                      selectedItem.customerName ||
+                      (selectedItem.user ? `${selectedItem.user.firstName} ${selectedItem.user.lastName || ''}` : 'N/A')}
+                  </span>
                 </div>
                 <div className="detail-row">
                   <span className="label">Date:</span>
@@ -1810,7 +2436,7 @@ export default function AdminPanel() {
                 </div>
                 <div className="detail-row">
                   <span className="label">Status:</span>
-                  <select 
+                  <select
                     className={`status-select ${getStatusColor(selectedItem.status)}`}
                     value={selectedItem.status || 'PENDING'}
                     onChange={(e) => handleUpdateOrderStatus(selectedItem.id, e.target.value)}
@@ -1905,7 +2531,7 @@ export default function AdminPanel() {
                 </div>
                 <div className="detail-row">
                   <span className="label">Role:</span>
-                  <select 
+                  <select
                     className="form-input"
                     value={selectedItem.role || 'CUSTOMER'}
                     onChange={(e) => handleChangeUserRole(selectedItem.id, e.target.value)}
@@ -1916,11 +2542,11 @@ export default function AdminPanel() {
                 </div>
                 <div className="detail-row">
                   <span className="label">Status:</span>
-                  <button 
+                  <button
                     className={`status-toggle ${selectedItem.active ? 'active' : 'inactive'}`}
                     onClick={() => {
                       handleToggleUserStatus(selectedItem.id, selectedItem.active);
-                      setSelectedItem({...selectedItem, active: !selectedItem.active});
+                      setSelectedItem({ ...selectedItem, active: !selectedItem.active });
                     }}
                   >
                     {selectedItem.active ? <Check size={14} /> : <XCircle size={14} />}
@@ -1938,6 +2564,180 @@ export default function AdminPanel() {
         </div>
       )}
 
+      {/* ==================== COUPON MODAL ==================== */}
+      {showCouponModal && (
+        <div className="modal-overlay" onClick={() => setShowCouponModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>{modalMode === 'add' ? '➕ Create Discount Coupon' : '✏️ Edit Coupon'}</h2>
+              <button className="modal-close" onClick={() => setShowCouponModal(false)}>
+                <X size={20} />
+              </button>
+            </div>
+            <form onSubmit={handleCouponSubmit} className="modal-form">
+              <div className="modal-body">
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Coupon Code *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={couponForm.code}
+                      onChange={(e) => setCouponForm({ ...couponForm, code: e.target.value.toUpperCase() })}
+                      placeholder="e.g., WELCOME10"
+                      pattern="[A-Z0-9_\\-]+"
+                      title="Only uppercase letters, numbers, hyphens, and underscores"
+                      required
+                      style={{ textTransform: 'uppercase' }}
+                    />
+                    <small className="form-hint">Uppercase letters, numbers, - and _ only</small>
+                  </div>
+                  <div className="form-group">
+                    <label>Total Usage Limit</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={couponForm.usageLimit}
+                      onChange={(e) => setCouponForm({ ...couponForm, usageLimit: e.target.value })}
+                      min="1"
+                      required
+                    />
+                    <small className="form-text text-muted">Total number of times this coupon can be used by all users combined.</small>
+                  </div>
+                  <div className="form-group">
+                    <label>Limit Per User</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={couponForm.usageLimitPerUser}
+                      onChange={(e) => setCouponForm({ ...couponForm, usageLimitPerUser: e.target.value })}
+                      min="1"
+                      placeholder="e.g. 1"
+                    />
+                    <small className="form-text text-muted">Max uses per single customer account.</small>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label>Description *</label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    value={couponForm.description}
+                    onChange={(e) => setCouponForm({ ...couponForm, description: e.target.value })}
+                    placeholder="e.g., 10% off for new customers"
+                    required
+                  />
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Discount Type *</label>
+                    <select
+                      className="form-input"
+                      value={couponForm.discountType}
+                      onChange={(e) => setCouponForm({ ...couponForm, discountType: e.target.value })}
+                      required
+                    >
+                      <option value="PERCENTAGE">Percentage (%)</option>
+                      <option value="FIXED_AMOUNT">Fixed Amount (₹)</option>
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>
+                      Discount Value *
+                      {couponForm.discountType === 'PERCENTAGE' ? ' (%)' : ' (₹)'}
+                    </label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0.01"
+                      max={couponForm.discountType === 'PERCENTAGE' ? '100' : undefined}
+                      className="form-input"
+                      value={couponForm.discountValue}
+                      onChange={(e) => setCouponForm({ ...couponForm, discountValue: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Min Order Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-input"
+                      value={couponForm.minOrderAmount}
+                      onChange={(e) => setCouponForm({ ...couponForm, minOrderAmount: e.target.value })}
+                      placeholder="Optional"
+                    />
+                    <small className="form-hint">Leave empty for no minimum</small>
+                  </div>
+                  <div className="form-group">
+                    <label>Max Discount Amount (₹)</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      className="form-input"
+                      value={couponForm.maxDiscountAmount}
+                      onChange={(e) => setCouponForm({ ...couponForm, maxDiscountAmount: e.target.value })}
+                      placeholder="Optional"
+                    />
+                    <small className="form-hint">Leave empty for no cap</small>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label>Valid From *</label>
+                    <input
+                      type="datetime-local"
+                      className="form-input"
+                      value={couponForm.validFrom}
+                      onChange={(e) => setCouponForm({ ...couponForm, validFrom: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label>Valid Until *</label>
+                    <input
+                      type="datetime-local"
+                      className="form-input"
+                      value={couponForm.validUntil}
+                      onChange={(e) => setCouponForm({ ...couponForm, validUntil: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label className="checkbox-label">
+                    <input
+                      type="checkbox"
+                      checked={couponForm.active}
+                      onChange={(e) => setCouponForm({ ...couponForm, active: e.target.checked })}
+                    />
+                    <span>Active (coupon can be used)</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button type="button" className="btn-cancel" onClick={() => setShowCouponModal(false)}>
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={loading}>
+                  {loading ? 'Saving...' : (modalMode === 'add' ? 'Create Coupon' : 'Update Coupon')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* ==================== DELETE CONFIRMATION ==================== */}
       {showDeleteConfirm && (
         <div className="confirm-modal" onClick={() => setShowDeleteConfirm(false)}>
@@ -1945,16 +2745,20 @@ export default function AdminPanel() {
             <div className="icon-danger">
               <AlertCircle size={32} />
             </div>
-            <h3>Delete Product?</h3>
+            <h3>Delete {selectedItem?.code ? 'Coupon' : 'Product'}?</h3>
             <p>
-              Are you sure you want to delete <strong>"{selectedItem?.name}"</strong>? 
+              Are you sure you want to delete <strong>"{selectedItem?.name || selectedItem?.code}"</strong>?
               This action cannot be undone.
             </p>
             <div className="confirm-actions">
               <button className="btn-cancel" onClick={() => setShowDeleteConfirm(false)}>
                 Cancel
               </button>
-              <button className="btn-danger" onClick={handleDeleteProduct} disabled={loading}>
+              <button
+                className="btn-danger"
+                onClick={selectedItem?.code ? handleDeleteCoupon : handleDeleteProduct}
+                disabled={loading}
+              >
                 {loading ? 'Deleting...' : 'Delete'}
               </button>
             </div>

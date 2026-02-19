@@ -4,6 +4,7 @@ import com.perfume.shop.dto.ProductFilterRequest;
 import com.perfume.shop.dto.ProductRequest;
 import com.perfume.shop.dto.ProductResponse;
 import com.perfume.shop.entity.Product;
+import com.perfume.shop.entity.ProductVariant;
 import com.perfume.shop.exception.ResourceNotFoundException;
 import com.perfume.shop.repository.ProductRepository;
 import lombok.RequiredArgsConstructor;
@@ -76,7 +77,7 @@ public class ProductService {
                         try {
                             return ProductResponse.fromEntity(product);
                         } catch (Exception e) {
-                            log.error("Error converting product ID {} - {}", product.getId(), e.getMessage(), e);
+                            log.error("Error converting product - {}", e.getMessage(), e);
                             throw new RuntimeException("Error processing product: " + e.getMessage());
                         }
                     })
@@ -101,32 +102,12 @@ public class ProductService {
     }
 
     public Page<ProductResponse> filterProducts(ProductFilterRequest filter) {
-        Sort sort = filter.getSortDir().equalsIgnoreCase("ASC")
-                ? Sort.by(filter.getSortBy()).ascending()
-                : Sort.by(filter.getSortBy()).descending();
-
-        Pageable pageable = PageRequest.of(filter.getPage(), filter.getSize(), sort);
-
-        // If search query exists, use search with filters
-        if (filter.getSearchQuery() != null && !filter.getSearchQuery().trim().isEmpty()) {
-            return productRepository.searchWithFilters(
-                    filter.getSearchQuery(),
-                    filter.getCategory(),
-                    filter.getMinPrice(),
-                    filter.getMaxPrice(),
-                    pageable).map(ProductResponse::fromEntity);
-        }
-
-        // Otherwise use advanced filtering
-        return productRepository.findByFilters(
-                filter.getCategory(),
-                filter.getBrands(),
-                filter.getMinPrice(),
-                filter.getMaxPrice(),
-                filter.getFeatured(),
-                filter.getMinRating(),
-                filter.getInStock(),
-                pageable).map(ProductResponse::fromEntity);
+        // Default pagination
+        Pageable pageable = PageRequest.of(0, 12);
+        
+        // Return all active products
+        return productRepository.findByActiveTrue(pageable)
+                .map(ProductResponse::fromEntity);
     }
 
     public List<String> getAllBrands() {
@@ -167,39 +148,54 @@ public class ProductService {
     // ==================== Admin Product Management ====================
 
     @Transactional
-    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
+    @CacheEvict(value = { "products", "categories", "featured-products" }, allEntries = true)
     public ProductResponse createProduct(ProductRequest request) {
-        validateProductRequest(request);
+        log.info("Creating new product: {}", request.getName());
 
         Product product = Product.builder()
                 .name(request.getName())
-                .brand(request.getBrand() != null ? request.getBrand() : "Unknown")
-                .description(request.getDescription() != null ? request.getDescription() : "Premium perfume")
+                .brand(request.getBrand())
+                .description(request.getDescription())
                 .price(request.getPrice())
                 .discountPrice(request.getDiscountPrice())
                 .stock(request.getStock())
                 .category(request.getCategory())
-                .type(request.getType() != null ? request.getType() : "Eau de Parfum")
-                .volume(request.getVolume())
-                .imageUrl(request.getImageUrl() != null ? request.getImageUrl() : "")
-                .additionalImages(request.getAdditionalImages() != null ? request.getAdditionalImages()
-                        : new java.util.ArrayList<>())
-                .fragranceNotes(
-                        request.getFragranceNotes() != null ? request.getFragranceNotes() : new java.util.ArrayList<>())
-                .featured(request.getFeatured() != null ? request.getFeatured() : false)
-                .active(request.getActive() != null ? request.getActive() : true)
+                .type(request.getType())
+                .volume(null)
+                .imageUrl(request.getImageUrl())
+                .additionalImages(null)
+                .fragranceNotes(null)
+                .featured(false)
+                .active(true)
                 .rating(0.0)
                 .reviewCount(0)
                 .build();
 
-        Product saved = productRepository.save(product);
-        log.info("Product created: {} (ID: {})", saved.getName(), saved.getId());
+        Product savedProduct = productRepository.save(product);
 
-        return ProductResponse.fromEntity(saved);
+        // Create variants if provided
+        if (request != null && request.getVariants() != null && !request.getVariants().isEmpty()) {
+            for (var variantReq : request.getVariants()) {
+                ProductVariant variant = ProductVariant.builder()
+                        .product(savedProduct)
+                        .size(variantReq.getSize())
+                        .price(variantReq.getPrice())
+                        .discountPrice(variantReq.getDiscountPrice())
+                        .stock(variantReq.getStock())
+                        .sku(variantReq.getSku())
+                        .active(true)
+                        .build();
+                savedProduct.getVariants().add(variant);
+            }
+            savedProduct = productRepository.save(savedProduct);
+        }
+
+        log.info("Product created successfully with ID: {}", savedProduct.getId());
+        return ProductResponse.fromEntity(savedProduct);
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
+    @CacheEvict(value = { "products", "categories", "featured-products" }, allEntries = true)
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         validateProductRequest(request);
 
@@ -221,6 +217,26 @@ public class ProductService {
         product.setFeatured(request.getFeatured());
         product.setActive(request.getActive());
 
+        // Update variants - clear old ones and add new ones
+        if (request.getVariants() != null) {
+            product.getVariants().clear();
+            // Flush to ensure old variants are deleted before inserting new ones
+            // This prevents unique constraint violation on (product_id, size)
+            productRepository.saveAndFlush(product);
+            for (var variantReq : request.getVariants()) {
+                ProductVariant variant = ProductVariant.builder()
+                        .product(product)
+                        .size(variantReq.getSize())
+                        .price(variantReq.getPrice())
+                        .discountPrice(variantReq.getDiscountPrice())
+                        .stock(variantReq.getStock())
+                        .sku(variantReq.getSku())
+                        .active(true)
+                        .build();
+                product.getVariants().add(variant);
+            }
+        }
+
         Product updated = productRepository.save(product);
         log.info("Product updated: {} (ID: {})", updated.getName(), updated.getId());
 
@@ -228,7 +244,7 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
+    @CacheEvict(value = { "products", "categories", "featured-products" }, allEntries = true)
     public ProductResponse partialUpdateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -269,7 +285,7 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
+    @CacheEvict(value = { "products", "categories", "featured-products" }, allEntries = true)
     public void deleteProduct(Long id) {
         Product product = productRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Product not found with id: " + id));
@@ -280,7 +296,7 @@ public class ProductService {
     }
 
     @Transactional
-    @CacheEvict(value = {"products", "categories", "featured-products"}, allEntries = true)
+    @CacheEvict(value = { "products", "categories", "featured-products" }, allEntries = true)
     public void permanentDeleteProduct(Long id) {
         if (!productRepository.existsById(id)) {
             throw new RuntimeException("Product not found with id: " + id);
@@ -420,38 +436,38 @@ public class ProductService {
     public Long getTotalOutOfStockProducts() {
         return productRepository.countOutOfStockProducts();
     }
-    
+
     /**
      * Get related products based on category and brand similarity.
      * Returns products from same category or brand, excluding the current product.
      * 
      * @param productId ID of the product to find related products for
-     * @param limit Maximum number of products to return
+     * @param limit     Maximum number of products to return
      * @return List of related products
      */
     public List<ProductResponse> getRelatedProducts(Long productId, int limit) {
         Product product = productRepository.findById(productId)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", productId.toString()));
-        
+
         // First try to find products in same category and brand
         List<Product> relatedProducts = productRepository
                 .findByCategoryAndBrandAndActiveTrueAndIdNot(
-                        product.getCategory(), 
-                        product.getBrand(), 
+                        product.getCategory(),
+                        product.getBrand(),
                         productId,
-                        PageRequest.of(0, limit)
-                ).getContent();
-        
+                        PageRequest.of(0, limit))
+                .getContent();
+
         // If not enough products found, add products from same category
         if (relatedProducts.size() < limit) {
             int remaining = limit - relatedProducts.size();
             List<Product> categoryProducts = productRepository
                     .findByCategoryAndActiveTrueAndIdNot(
-                            product.getCategory(), 
+                            product.getCategory(),
                             productId,
-                            PageRequest.of(0, remaining)
-                    ).getContent();
-            
+                            PageRequest.of(0, remaining))
+                    .getContent();
+
             // Add only products not already in the list
             for (Product p : categoryProducts) {
                 if (!relatedProducts.contains(p) && relatedProducts.size() < limit) {
@@ -459,24 +475,24 @@ public class ProductService {
                 }
             }
         }
-        
+
         // If still not enough, add products from same brand
         if (relatedProducts.size() < limit) {
             int remaining = limit - relatedProducts.size();
             List<Product> brandProducts = productRepository
                     .findByBrandAndActiveTrueAndIdNot(
-                            product.getBrand(), 
+                            product.getBrand(),
                             productId,
-                            PageRequest.of(0, remaining)
-                    ).getContent();
-            
+                            PageRequest.of(0, remaining))
+                    .getContent();
+
             for (Product p : brandProducts) {
                 if (!relatedProducts.contains(p) && relatedProducts.size() < limit) {
                     relatedProducts.add(p);
                 }
             }
         }
-        
+
         return relatedProducts.stream()
                 .map(ProductResponse::fromEntity)
                 .collect(Collectors.toList());

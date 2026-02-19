@@ -1,74 +1,139 @@
 import { Link } from 'react-router-dom';
+import { Star, ShoppingCart, Eye } from 'lucide-react';
+import { Card } from './ui/card';
+import { Badge } from './ui/badge';
+import { Button } from './ui/button';
+import { cn } from '../lib/utils';
+import WishlistButton from './WishlistButton';
+import StockBadge from './StockBadge';
 
-export default function ProductCard({ product }) {
-  const displayPrice = product.discountPrice || product.price;
+export default function ProductCard({ product, onQuickView }) {
+  const displayPrice = product.discountPrice || product.price || 0;
   const hasDiscount = product.discountPrice && product.discountPrice < product.price;
+  const discountPercent = hasDiscount
+    ? Math.round(((product.price - product.discountPrice) / product.price) * 100)
+    : 0;
 
   return (
-    <Link to={`/products/${product.id}`} className="card group">
-      <div className="relative overflow-hidden">
-        <img
-          src={product.imageUrl || 'https://via.placeholder.com/400x500?text=Perfume'}
-          alt={product.name}
-          className="w-full h-72 object-cover group-hover:scale-110 transition-transform duration-300"
-        />
-        {hasDiscount && (
-          <span className="absolute top-4 right-4 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-semibold">
-            Sale
-          </span>
-        )}
-        {product.featured && (
-          <span className="absolute top-4 left-4 bg-primary-600 text-white px-3 py-1 rounded-full text-sm font-semibold">
-            Featured
-          </span>
-        )}
-      </div>
-      
-      <div className="p-6">
-        <p className="text-sm text-gray-500 mb-1">{product.brand}</p>
-        <h3 className="text-lg font-semibold text-gray-900 mb-2 line-clamp-2">
-          {product.name}
-        </h3>
-        
-        <div className="flex items-center mb-3">
-          <div className="flex items-center">
-            {[...Array(5)].map((_, i) => (
-              <svg
-                key={i}
-                className={`w-4 h-4 ${
-                  i < Math.floor(product.rating) ? 'text-yellow-400' : 'text-gray-300'
-                }`}
-                fill="currentColor"
-                viewBox="0 0 20 20"
-              >
-                <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
-              </svg>
-            ))}
-            <span className="ml-2 text-sm text-gray-600">({product.reviewCount})</span>
+    <Card className="overflow-hidden transition-all duration-300 hover:shadow-lg border-border/50 group">
+      <Link to={`/products/${product.id}`} className="block">
+        <div className="relative aspect-[3/4] overflow-hidden bg-muted">
+          <img
+            src={product.imageUrl || 'https://placehold.co/600x400?text=Perfume'}
+            alt={product.name}
+            onError={(e) => {
+              e.target.onerror = null; // Prevent infinite loop
+              e.target.src = 'https://placehold.co/600x400?text=No+Image';
+            }}
+            className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+          <div className="absolute top-3 left-3">
+            <WishlistButton productId={product.id} />
           </div>
-        </div>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
+          <div className="absolute top-3 right-3 flex flex-col gap-2">
             {hasDiscount && (
-              <span className="text-gray-400 line-through text-sm">
-                ₹{product.price.toFixed(2)}
-              </span>
+              <Badge variant="destructive" className="shadow-sm">
+                -{discountPercent}%
+              </Badge>
             )}
-            <span className="text-xl font-bold text-gray-900">
-              ₹{displayPrice.toFixed(2)}
-            </span>
+            {product.featured && (
+              <Badge className="bg-accent text-white shadow-sm">
+                Featured
+              </Badge>
+            )}
+            {product.stock < 10 && (
+              <StockBadge stock={product.stock} className="shadow-sm" />
+            )}
           </div>
-          <span className="text-sm text-gray-500">{product.volume}ml</span>
+
+          {/* Quick View Button - Shows on hover */}
+          <div className="absolute inset-x-0 bottom-0 p-4 translate-y-full group-hover:translate-y-0 transition-transform duration-300">
+            <Button
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onQuickView?.(product);
+              }}
+              className="w-full bg-white/95 hover:bg-white text-foreground backdrop-blur-sm shadow-lg"
+              size="sm"
+            >
+              <Eye className="h-4 w-4 mr-2" />
+              Quick View
+            </Button>
+          </div>
+
+          {product.stock === 0 && (
+            <div className="absolute inset-0 bg-black/60 flex items-center justify-center">
+              <div className="bg-white px-5 py-3 rounded-lg shadow-lg">
+                <p className="text-sm font-semibold text-red-700">Out of Stock</p>
+              </div>
+            </div>
+          )}
         </div>
-        
-        {product.stock < 10 && product.stock > 0 && (
-          <p className="text-sm text-orange-600 mt-2">Only {product.stock} left!</p>
-        )}
-        {product.stock === 0 && (
-          <p className="text-sm text-red-600 mt-2">Out of stock</p>
-        )}
-      </div>
-    </Link>
+
+        <div className="p-4 space-y-3">
+          {product.brand && (
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              {product.brand}
+            </p>
+          )}
+
+          <h3 className="font-semibold text-foreground line-clamp-2 group-hover:text-primary transition-colors min-h-[2.5rem]">
+            {product.name}
+          </h3>
+
+          {product.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {product.description}
+            </p>
+          )}
+
+          {product.volume && (
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary" className="text-xs font-medium">
+                {product.volume}ml
+              </Badge>
+            </div>
+          )}
+
+          {product.rating > 0 && (
+            <div className="flex items-center gap-1">
+              <div className="flex items-center">
+                {[...Array(5)].map((_, i) => (
+                  <Star
+                    key={i}
+                    className={cn(
+                      "h-3.5 w-3.5",
+                      i < Math.floor(product.rating)
+                        ? "fill-accent text-accent"
+                        : "fill-muted text-muted"
+                    )}
+                  />
+                ))}
+              </div>
+              {product.reviewCount > 0 && (
+                <span className="text-xs text-muted-foreground">
+                  ({product.reviewCount})
+                </span>
+              )}
+            </div>
+          )}
+
+          <div className="flex items-baseline justify-between pt-2">
+            <div className="flex items-baseline gap-2">
+              <span className="text-lg font-bold text-foreground">
+                ₹{(displayPrice || 0).toFixed(2)}
+              </span>
+              {hasDiscount && (
+                <span className="text-sm text-muted-foreground line-through">
+                  ₹{(product.price || 0).toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+
+        </div>
+      </Link>
+    </Card>
   );
 }

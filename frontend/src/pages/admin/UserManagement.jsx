@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../api/axios';
+import { useAuthStore } from '../../store/authStore';
 
 export default function UserManagement() {
   const [users, setUsers] = useState([]);
@@ -44,6 +45,24 @@ export default function UserManagement() {
   };
 
   const handleUpdateRole = async (userId, newRole) => {
+    // Check if current user is ADMIN
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser || currentUser.role !== 'ADMIN') {
+      setError('❌ Only ADMIN can assign roles');
+      return;
+    }
+
+    // If assigning ADMIN role, check if an ADMIN already exists
+    if (newRole === 'ADMIN') {
+      const adminUsers = users.filter(u => u.role === 'ADMIN');
+      const isCurrentlyAdmin = selectedUser.role === 'ADMIN';
+      
+      if (adminUsers.length > 0 && !isCurrentlyAdmin) {
+        setError('❌ Only ONE ADMIN user is allowed. Remove existing ADMIN first.');
+        return;
+      }
+    }
+
     try {
       setUpdating({ userId, type: 'role' });
       await api.put(`/admin/users/${userId}/role`, { role: newRole });
@@ -57,9 +76,10 @@ export default function UserManagement() {
       // Refresh users list
       fetchUsers();
       setUpdating(null);
+      setError(null);
     } catch (err) {
       console.error('Error updating user role:', err);
-      setError('Failed to update user role');
+      setError('❌ Failed to update user role');
       setUpdating(null);
     }
   };
@@ -86,7 +106,9 @@ export default function UserManagement() {
   };
 
   const getRoleColor = (role) => {
-    return role === 'ADMIN' ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700';
+    if (role === 'ADMIN') return 'bg-red-100 text-red-700';
+    if (role === 'EMPLOYEE') return 'bg-purple-100 text-purple-700';
+    return 'bg-blue-100 text-blue-700';
   };
 
   const getStatusColor = (active) => {
@@ -246,7 +268,7 @@ export default function UserManagement() {
                   <div>
                     <p className="text-sm text-gray-600 mb-2">Change Role To</p>
                     <div className="space-y-2">
-                      {['USER', 'ADMIN'].map((role) => (
+                      {['USER', 'EMPLOYEE', 'ADMIN'].map((role) => (
                         <button
                           key={role}
                           onClick={() => handleUpdateRole(selectedUser.id, role)}

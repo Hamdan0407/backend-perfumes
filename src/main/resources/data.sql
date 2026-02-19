@@ -1,23 +1,30 @@
 -- Sample products only - Users are created by initializers
 
+-- Clean start for products and variants
+TRUNCATE TABLE product_variants RESTART IDENTITY CASCADE;
+TRUNCATE TABLE products RESTART IDENTITY CASCADE;
+
 INSERT INTO products (name, brand, description, price, discount_price, category, type, volume, image_url, stock, active, featured, rating, review_count, created_at, updated_at) VALUES
-('No. 5', 'Chanel', 'Iconic floral fragrance with timeless elegance', 5000.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Chanel+No+5', 25, 1, 1, 4.8, 245, NOW(), NOW()),
-('Jadore', 'Dior', 'Luxurious fruity floral with sensual notes', 4500.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Dior+Jadore', 32, 1, 0, 4.7, 189, NOW(), NOW()),
-('Bloom', 'Gucci', 'Fresh floral with gardenia and tuberose', 4400.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Gucci+Bloom', 28, 1, 0, 4.6, 156, NOW(), NOW()),
-('Black Orchid', 'Tom Ford', 'Exotic dark floral with spicy notes', 6500.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Tom+Ford+Black+Orchid', 18, 1, 1, 4.9, 312, NOW(), NOW()),
-('La Vie est Belle', 'Lancome', 'Sweet floral fragrance with iris', 4200.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Lancome+La+Vie', 35, 1, 0, 4.7, 201, NOW(), NOW()),
-('Obsession', 'Calvin Klein', 'Sensual amber fragrance', 3800.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Calvin+Klein+Obsession', 42, 1, 0, 4.5, 167, NOW(), NOW()),
-('Brit', 'Burberry', 'Fresh fruity floral for women', 3900.00, NULL, 'Women', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Burberry+Brit', 38, 1, 0, 4.6, 178, NOW(), NOW()),
-('Candy', 'Prada', 'Sweet gourmand fragrance with caramel', 4100.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Prada+Candy', 30, 1, 0, 4.7, 192, NOW(), NOW()),
-('Daisy', 'Marc Jacobs', 'Fresh fruity with simple florals', 3200.00, NULL, 'Women', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Marc+Jacobs+Daisy', 48, 1, 0, 4.4, 145, NOW(), NOW()),
-('Aventus', 'Creed', 'Prestigious fruity woody fragrance', 11000.00, NULL, 'Men', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Creed+Aventus', 12, 1, 1, 4.9, 421, NOW(), NOW()),
-('Sauvage', 'Dior', 'Fresh aromatic masculine fragrance', 5200.00, NULL, 'Men', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Dior+Sauvage', 22, 1, 1, 4.8, 356, NOW(), NOW()),
-('Bleu de Chanel', 'Chanel', 'Woody aromatic blend for men', 5500.00, NULL, 'Men', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Bleu+de+Chanel', 19, 1, 0, 4.8, 298, NOW(), NOW()),
-('Eros', 'Versace', 'Fresh spicy fragrance for men', 4000.00, NULL, 'Men', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Versace+Eros', 31, 1, 0, 4.6, 224, NOW(), NOW()),
-('Aqua', 'Calvin Klein', 'Fresh aquatic masculine scent', 3500.00, NULL, 'Men', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Calvin+Klein+Aqua', 41, 1, 0, 4.5, 189, NOW(), NOW()),
-('Cologne Néroli', 'Jo Malone', 'Citrus and woody unisex fragrance', 2800.00, NULL, 'Unisex', 'Cologne', 100, 'https://via.placeholder.com/300?text=Neroli+Cologne', 55, 1, 0, 4.3, 98, NOW(), NOW()),
-('Wood Sage & Sea Salt', 'Jo Malone', 'Fresh woody cologne', 3800.00, NULL, 'Unisex', 'Cologne', 100, 'https://via.placeholder.com/300?text=Jo+Malone', 45, 1, 0, 4.6, 167, NOW(), NOW()),
-('H24', 'Hermès', 'Timeless floral fragrance', 4800.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Hermes+H24', 26, 1, 0, 4.7, 213, NOW(), NOW()),
-('Mon Paris', 'Yves Saint Laurent', 'Romantic fruity floral', 4300.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=YSL+Mon+Paris', 33, 1, 0, 4.6, 178, NOW(), NOW()),
-('Gentleman', 'Givenchy', 'Sophisticated woody for men', 4900.00, NULL, 'Men', 'Eau de Toilette', 100, 'https://via.placeholder.com/300?text=Givenchy+Gentleman', 24, 1, 0, 4.7, 256, NOW(), NOW()),
-('Coco Mademoiselle', 'Chanel', 'Elegant modern floral', 5300.00, NULL, 'Women', 'Eau de Parfum', 50, 'https://via.placeholder.com/300?text=Coco+Mademoiselle', 20, 1, 1, 4.8, 334, NOW(), NOW());
+('No. 5', 'Chanel', 'Iconic floral fragrance with timeless elegance', 5000.00, NULL, 'Women', 'Perfume', 50, 'https://placehold.co/600x600?text=Chanel+No+5', 100, TRUE, TRUE, 4.8, 245, NOW(), NOW()),
+('Jadore', 'Dior', 'Luxurious fruity floral with sensual notes', 4500.00, NULL, 'Women', 'Perfume', 50, 'https://placehold.co/600x600?text=Dior+Jadore', 100, TRUE, FALSE, 4.7, 189, NOW(), NOW()),
+('Bloom', 'Gucci', 'Fresh floral with gardenia and tuberose', 4400.00, NULL, 'Women', 'Perfume', 50, 'https://placehold.co/600x600?text=Gucci+Bloom', 100, TRUE, FALSE, 4.6, 156, NOW(), NOW()),
+('Aventus', 'Creed', 'Prestigious fruity woody fragrance', 11000.00, NULL, 'Men', 'Perfume', 50, 'https://placehold.co/600x600?text=Creed+Aventus', 100, TRUE, TRUE, 4.9, 421, NOW(), NOW()),
+('Sauvage', 'Dior', 'Fresh aromatic masculine fragrance', 5200.00, NULL, 'Men', 'Perfume', 100, 'https://placehold.co/600x600?text=Dior+Sauvage', 100, TRUE, TRUE, 4.8, 356, NOW(), NOW()),
+('Musk Al Kaaba', 'Al Haramain', 'Premium oriental attar with deep musk notes', 1200.00, NULL, 'Unisex', 'Attar', 12, 'https://placehold.co/600x600?text=Musk+Al+Kaaba', 100, TRUE, TRUE, 4.9, 87, NOW(), NOW()),
+('Oudh 360', 'Al Rehab', 'Classic concentrated perfume oil', 800.00, NULL, 'Unisex', 'Attar', 6, 'https://placehold.co/600x600?text=Oudh+360', 100, TRUE, FALSE, 4.7, 124, NOW(), NOW()),
+('White Musk', 'Ajmal', 'Fresh and clean white musk oil', 1500.00, NULL, 'Unisex', 'Attar', 10, 'https://placehold.co/600x600?text=White+Musk', 100, TRUE, TRUE, 4.8, 56, NOW(), NOW());
+
+-- Variants with sizes based on category (Indices follow TRUNCATE sequence)
+INSERT INTO product_variants (product_id, size, price, discount_price, stock, active, sku, created_at, updated_at) VALUES
+(1, 30, 3200.00, NULL, 50, TRUE, 'CH-NO5-30', NOW(), NOW()),
+(1, 50, 5000.00, NULL, 50, TRUE, 'CH-NO5-50', NOW(), NOW()),
+(1, 100, 8500.00, 8000.00, 30, TRUE, 'CH-NO5-100', NOW(), NOW()),
+(2, 30, 2800.00, NULL, 40, TRUE, 'DI-JAD-30', NOW(), NOW()),
+(2, 50, 4500.00, NULL, 40, TRUE, 'DI-JAD-50', NOW(), NOW()),
+(2, 100, 7800.00, NULL, 25, TRUE, 'DI-JAD-100', NOW(), NOW()),
+(6, 6, 800.00, NULL, 45, TRUE, 'AL-MAK-6', NOW(), NOW()),
+(6, 10, 1200.00, NULL, 35, TRUE, 'AL-MAK-10', NOW(), NOW()),
+(7, 6, 800.00, NULL, 60, TRUE, 'AL-REH-6', NOW(), NOW()),
+(7, 10, 1200.00, NULL, 40, TRUE, 'AL-REH-10', NOW(), NOW()),
+(8, 6, 1000.00, NULL, 30, TRUE, 'AJ-WMU-6', NOW(), NOW()),
+(8, 10, 1500.00, NULL, 25, TRUE, 'AJ-WMU-10', NOW(), NOW());

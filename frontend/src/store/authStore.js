@@ -33,22 +33,11 @@ const storage = {
  * Authentication Store
  * 
  * Manages user authentication state with JWT tokens and user information.
- * Persists tokens and user data to localStorage via Zustand persist middleware.
+ * Uses Zustand persist middleware as the SINGLE source of truth for auth state.
+ * The persist middleware key 'auth-storage' stores all auth data.
  * 
- * Fields:
- * - user: Logged-in user object (id, email, firstName, lastName, role)
- * - accessToken: JWT access token for API requests (24h expiry)
- * - refreshToken: Refresh token for obtaining new access tokens (7d expiry)
- * - tokenExpiresAt: Timestamp when access token expires (ms since epoch)
- * - isAuthenticated: Boolean flag indicating login status
- * 
- * Methods:
- * - login(userData, accessToken, refreshToken, expiresIn): Set auth state after login
- * - logout(): Clear all auth state and tokens
- * - updateUser(userData): Update user information
- * - updateTokens(accessToken, refreshToken, expiresIn): Update tokens (called by refresh)
- * - isTokenExpired(): Check if current access token is expired
- * - getAccessToken(): Get current access token
+ * Legacy localStorage keys (accessToken, token, refreshToken, etc.) are kept
+ * in sync for backward compatibility with components that read them directly.
  */
 export const useAuthStore = create(
   persist(
@@ -58,103 +47,155 @@ export const useAuthStore = create(
       refreshToken: null,
       tokenExpiresAt: null,
       isAuthenticated: false,
+      sessionInitialized: false,
 
       /**
-       * Set user and tokens after successful login/registration
-       * @param {Object} userData - User information
-       * @param {string} accessToken - Access token from auth endpoint
-       * @param {string} refreshToken - Refresh token from auth endpoint
-       * @param {number} expiresIn - Token expiration time in seconds
+       * Set user and tokens after successful login
        */
       login: (userData, accessToken, refreshToken, expiresIn) => {
+        if (!userData || !accessToken || !refreshToken) {
+          console.error('🚨 Invalid login parameters:', { userData, accessToken, refreshToken });
+          return;
+        }
+
         const tokenExpiresAt = Date.now() + (expiresIn * 1000);
-        
+
+        // Sync legacy localStorage keys for backward compatibility
         storage.setItem('accessToken', accessToken);
-        storage.setItem('token', accessToken); // For backward compatibility
+        storage.setItem('token', accessToken);
         storage.setItem('refreshToken', refreshToken);
-        storage.setItem('user', JSON.stringify(userData));
         storage.setItem('tokenExpiresAt', tokenExpiresAt.toString());
-        
+
+        console.log('✅ User logged in:', userData.email, 'Token expires at:', new Date(tokenExpiresAt).toISOString());
+
         set({
           user: userData,
           accessToken,
           refreshToken,
           tokenExpiresAt,
           isAuthenticated: true,
+          sessionInitialized: true,
         });
       },
 
       /**
        * Clear all authentication state and tokens
-       * Called on logout or when refresh token fails
        */
       logout: () => {
+        console.log('🔐 User logged out');
+
+        // Clear legacy localStorage keys
         storage.removeItem('accessToken');
-        storage.removeItem('token'); // For backward compatibility
+        storage.removeItem('token');
         storage.removeItem('refreshToken');
         storage.removeItem('user');
         storage.removeItem('tokenExpiresAt');
-        
+
         set({
           user: null,
           accessToken: null,
           refreshToken: null,
           tokenExpiresAt: null,
           isAuthenticated: false,
+          sessionInitialized: true,
         });
       },
 
       /**
+       * Initialize session after Zustand hydration completes.
+       * Validates the hydrated token and marks session as initialized.
+       * Does NOT read from raw localStorage — Zustand persist is the source of truth.
+       */
+      initializeSession: () => {
+        const state = get();
+
+        if (state.accessToken && state.user && state.tokenExpiresAt) {
+          const isExpired = state.tokenExpiresAt - Date.now() < 60 * 1000;
+
+          console.log('📋 Session restore:', {
+            email: state.user.email,
+            role: state.user.role,
+            tokenExpired: isExpired,
+            expiresIn: Math.max(0, (state.tokenExpiresAt - Date.now()) / 1000)
+          });
+
+          // Sync legacy localStorage keys in case they got out of sync
+          storage.setItem('accessToken', state.accessToken);
+          storage.setItem('token', state.accessToken);
+          if (state.refreshToken) {
+            storage.setItem('refreshToken', state.refreshToken);
+          }
+          storage.setItem('tokenExpiresAt', state.tokenExpiresAt.toString());
+
+          set({
+            isAuthenticated: !isExpired,
+            sessionInitialized: true,
+          });
+        } else {
+          console.log('📋 No existing session found');
+          // Clear any stale legacy keys
+          storage.removeItem('accessToken');
+          storage.removeItem('token');
+          storage.removeItem('refreshToken');
+          storage.removeItem('user');
+          storage.removeItem('tokenExpiresAt');
+
+          set({ sessionInitialized: true });
+        }
+      },
+
+      /**
        * Update user profile information
-       * Does not affect authentication tokens
-       * @param {Object} userData - Updated user data
        */
       updateUser: (userData) => {
-        storage.setItem('user', JSON.stringify(userData));
         set({ user: userData });
       },
 
       /**
        * Update tokens after refresh (called by axios interceptor)
-       * Keeps user and isAuthenticated unchanged
-       * @param {string} accessToken - New access token
-       * @param {string} refreshToken - New refresh token
-       * @param {number} expiresIn - Token expiration time in seconds
        */
       updateTokens: (accessToken, refreshToken, expiresIn) => {
+        if (!accessToken || !expiresIn) {
+          console.error('🚨 Invalid token refresh parameters');
+          return;
+        }
+
         const tokenExpiresAt = Date.now() + (expiresIn * 1000);
-        
+
+        // Sync legacy localStorage keys
         storage.setItem('accessToken', accessToken);
-        storage.setItem('token', accessToken); // For backward compatibility
-        storage.setItem('refreshToken', refreshToken);
+        storage.setItem('token', accessToken);
+
+        if (refreshToken) {
+          storage.setItem('refreshToken', refreshToken);
+        }
+
         storage.setItem('tokenExpiresAt', tokenExpiresAt.toString());
-        
+
+        console.log('🔄 Tokens refreshed, expires at:', new Date(tokenExpiresAt).toISOString());
+
         set({
           accessToken,
-          refreshToken,
+          ...(refreshToken && { refreshToken }),
           tokenExpiresAt,
         });
       },
 
       /**
        * Check if current access token is expired
-       * Includes 1-minute buffer to refresh before actual expiry
-       * @returns {boolean} True if token is expired or about to expire
        */
       isTokenExpired: () => {
         const state = get();
         if (!state.tokenExpiresAt) return true;
-        
+
         const timeUntilExpiry = state.tokenExpiresAt - Date.now();
-        const BUFFER_MS = 60 * 1000; // 1 minute buffer
-        
+        const BUFFER_MS = 60 * 1000;
+
         return timeUntilExpiry < BUFFER_MS;
       },
 
       /**
        * Get current access token
-       * Returns null if token is expired or user not authenticated
-       * @returns {string|null} Current access token or null
        */
       getAccessToken: () => {
         const state = get();
@@ -166,7 +207,7 @@ export const useAuthStore = create(
     {
       name: 'auth-storage',
       storage: storage,
-      // Only persist specific fields to localStorage
+      // Persist all auth fields
       partialize: (state) => ({
         user: state.user,
         accessToken: state.accessToken,
@@ -174,6 +215,31 @@ export const useAuthStore = create(
         tokenExpiresAt: state.tokenExpiresAt,
         isAuthenticated: state.isAuthenticated,
       }),
+      // Mark session as initialized once hydration completes
+      onRehydrateStorage: () => {
+        return (state, error) => {
+          if (error) {
+            console.error('❌ Error rehydrating auth store:', error);
+            useAuthStore.setState({ sessionInitialized: true, isAuthenticated: false });
+          } else {
+            const isExpired =
+              state?.tokenExpiresAt && state.tokenExpiresAt - Date.now() < 60 * 1000;
+            useAuthStore.setState({
+              sessionInitialized: true,
+              isAuthenticated: isExpired ? false : (state?.isAuthenticated ?? false),
+            });
+            // Sync legacy keys
+            if (state?.accessToken) {
+              storage.setItem('accessToken', state.accessToken);
+              storage.setItem('token', state.accessToken);
+            }
+            if (state?.refreshToken) {
+              storage.setItem('refreshToken', state.refreshToken);
+            }
+            console.log('📋 Auth store rehydrated:', state?.user?.email || 'no user');
+          }
+        };
+      },
     }
   )
 );

@@ -70,7 +70,7 @@ public class OrderController {
      * @throws RuntimeException if signature invalid or user doesn't own order
      */
     @PostMapping("/verify-payment")
-    public ResponseEntity<Order> verifyPayment(
+    public ResponseEntity<Map<String, Object>> verifyPayment(
             @AuthenticationPrincipal User user,
             @Valid @RequestBody RazorpayPaymentVerificationRequest request
     ) {
@@ -98,7 +98,13 @@ public class OrderController {
         }
         
         log.info("Payment verified successfully for order: {}", order.getId());
-        return ResponseEntity.ok(order);
+        return ResponseEntity.ok(Map.of(
+                "success", true,
+                "orderId", order.getId(),
+                "orderNumber", order.getOrderNumber(),
+                "status", order.getStatus().name(),
+                "message", "Payment verified successfully"
+        ));
     }
     
     /**

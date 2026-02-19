@@ -13,7 +13,7 @@ export default function ProductManagement() {
     name: '',
     description: '',
     price: '',
-    stockQuantity: '',
+    stock: '',
     category: '',
     brand: '',
     imageUrl: '',
@@ -47,11 +47,25 @@ export default function ProductManagement() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate required fields
+    if (!formData.name || !formData.brand || !formData.price || !formData.stock || !formData.category || !formData.description) {
+      setError('❌ Please fill in all required fields: Name, Brand, Price, Stock, Category, and Description');
+      return;
+    }
+
+    // Convert string values to proper types
+    const submitData = {
+      ...formData,
+      price: parseFloat(formData.price),
+      stock: parseInt(formData.stock),
+    };
+
     try {
       if (editingProduct) {
-        await api.put(`/admin/products/${editingProduct.id}`, formData);
+        await api.put(`/admin/products/${editingProduct.id}`, submitData);
       } else {
-        await api.post('/admin/products', formData);
+        await api.post('/admin/products', submitData);
       }
       setShowForm(false);
       setEditingProduct(null);
@@ -59,15 +73,26 @@ export default function ProductManagement() {
         name: '',
         description: '',
         price: '',
-        stockQuantity: '',
+        stock: '',
         category: '',
         brand: '',
         imageUrl: '',
       });
       fetchProducts();
+      setError(null);
     } catch (err) {
       console.error('Error saving product:', err);
-      setError('Failed to save product');
+      
+      // Show backend validation errors
+      if (err.response?.data?.message) {
+        setError(`❌ ${err.response.data.message}`);
+      } else if (err.response?.data?.errors) {
+        setError(`❌ ${Object.values(err.response.data.errors).join(', ')}`);
+      } else {
+        setError('❌ Failed to save product. Please try again.');
+      }
+    }
+  };
     }
   };
 
@@ -77,7 +102,7 @@ export default function ProductManagement() {
       name: product.name,
       description: product.description,
       price: product.price,
-      stockQuantity: product.stockQuantity,
+      stock: product.stock,
       category: product.category,
       brand: product.brand,
       imageUrl: product.imageUrl,
@@ -100,11 +125,12 @@ export default function ProductManagement() {
   const handleCancel = () => {
     setShowForm(false);
     setEditingProduct(null);
+    setError(null);
     setFormData({
       name: '',
       description: '',
       price: '',
-      stockQuantity: '',
+      stock: '',
       category: '',
       brand: '',
       imageUrl: '',
@@ -126,11 +152,12 @@ export default function ProductManagement() {
         <button
           onClick={() => {
             setEditingProduct(null);
+            setError(null);
             setFormData({
               name: '',
               description: '',
               price: '',
-              stockQuantity: '',
+              stock: '',
               category: '',
               brand: '',
               imageUrl: '',
@@ -212,8 +239,8 @@ export default function ProductManagement() {
                 </label>
                 <input
                   type="number"
-                  name="stockQuantity"
-                  value={formData.stockQuantity}
+                  name="stock"
+                  value={formData.stock}
                   onChange={handleInputChange}
                   required
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -285,14 +312,14 @@ export default function ProductManagement() {
                 <td className="px-6 py-4 text-sm">
                   <span
                     className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                      product.stockQuantity > 10
+                      product.stock > 10
                         ? 'bg-green-100 text-green-700'
-                        : product.stockQuantity > 0
+                        : product.stock > 0
                         ? 'bg-yellow-100 text-yellow-700'
                         : 'bg-red-100 text-red-700'
                     }`}
                   >
-                    {product.stockQuantity}
+                    {product.stock}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm space-x-2">

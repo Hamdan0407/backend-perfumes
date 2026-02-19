@@ -107,6 +107,16 @@ const reviewAPI = {
     return response.data.data;
   },
 
+  // Simple wrapper for backend /api/reviews endpoint
+  createReview: async (productId, rating, comment) => {
+    const response = await api.post('/reviews', {
+      productId,
+      rating,
+      comment,
+    });
+    return response.data;
+  },
+
   /**
    * Update own review
    * Requires: Authentication

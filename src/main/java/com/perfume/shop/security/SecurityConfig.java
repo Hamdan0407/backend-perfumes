@@ -1,13 +1,10 @@
 package com.perfume.shop.security;
 
-import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -27,25 +24,13 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import java.util.Arrays;
 import java.util.List;
 
-/**
- * Hardened Spring Security Configuration
- * 
- * Features:
- * - Restrictive CORS policy (environment-based origins)
- * - Strong endpoint permission model
- * - JWT token expiry handling
- * - Password policy enforcement
- * - CSRF protection disabled only for stateless JWT auth
- * - Session stateless (no cookies)
- */
 @Configuration
 @EnableWebSecurity
 @EnableMethodSecurity(securedEnabled = true, jsr250Enabled = true)
-@RequiredArgsConstructor
 public class SecurityConfig {
 
-        private final ObjectProvider<UserDetailsService> userDetailsServiceProvider;
         private final JwtService jwtService;
+        private final UserDetailsService userDetailsService;
 
         @Value("${app.security.cors-origins:http://localhost:3000,http://localhost:5173}")
         private String corsOrigins;
@@ -56,32 +41,24 @@ public class SecurityConfig {
         @Value("${app.security.password-encoder-strength:12}")
         private int passwordEncoderStrength;
 
-        @Bean
-        public JwtAuthenticationFilter jwtAuthenticationFilter() {
-                return new JwtAuthenticationFilter(jwtService, userDetailsServiceProvider.getObject());
+        public SecurityConfig(JwtService jwtService, @Lazy UserDetailsService userDetailsService) {
+                this.jwtService = jwtService;
+                this.userDetailsService = userDetailsService;
         }
 
         @Bean
         public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+                JwtAuthenticationFilter jwtFilter = new JwtAuthenticationFilter(jwtService, userDetailsService);
+
                 http
-                                // CSRF: Disabled for stateless JWT authentication
                                 .csrf(AbstractHttpConfigurer::disable)
-
-                                // CORS: Restrictive policy
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-                                // Security Headers: Protection against common attacks
                                 .headers(headers -> headers
-                                                .contentTypeOptions(contentTypeOptions -> contentTypeOptions.disable())
-                                                .xssProtection(xss -> xss.headerValue("1; mode=block"))
                                                 .frameOptions(frame -> frame.deny())
                                                 .httpStrictTransportSecurity(hsts -> hsts
                                                                 .maxAgeInSeconds(31536000)
                                                                 .includeSubDomains(true)))
-
-                                // Authorization: Fine-grained endpoint permissions
                                 .authorizeHttpRequests(auth -> auth
-                                                // Public endpoints - no authentication required
                                                 .requestMatchers(
                                                                 "/api/auth/register",
                                                                 "/api/auth/login",
@@ -98,57 +75,29 @@ public class SecurityConfig {
                                                                 "/api/chatbot/**",
                                                                 "/error",
                                                                 "/health",
-                                                                "/actuator/health")
+                                                                "/actuator/health",
+                                                                "/actuator/info",
+                                                                "/actuator/prometheus",
+                                                                "/swagger-ui.html",
+                                                                "/swagger-ui/**",
+                                                                "/v3/api-docs/**",
+                                                                "/api-docs/**")
                                                 .permitAll()
-
-                                                // Admin endpoints - requires ADMIN role
-                                                .requestMatchers(
-                                                                "/api/admin/**",
-                                                                "/api/admin/dashboard/**")
-                                                .hasRole("ADMIN")
-
-                                                // User cart endpoints - authenticated users only
-                                                .requestMatchers(
-                                                                "/api/cart/**",
-                                                                "/api/cart")
-                                                .authenticated()
-
-                                                // User order endpoints - authenticated users only
-                                                .requestMatchers(
-                                                                "/api/orders/**",
-                                                                "/api/orders")
-                                                .authenticated()
-
-                                                // User checkout - authenticated users only
-                                                .requestMatchers(
-                                                                "/api/checkout/**")
-                                                .authenticated()
-
-                                                // User profile - authenticated users only
-                                                .requestMatchers(
-                                                                "/api/users/profile",
-                                                                "/api/users/password/**")
-                                                .authenticated()
-
-                                                // Review endpoints - authenticated for write, public for read
-                                                .requestMatchers(
-                                                                "/api/reviews/create",
-                                                                "/api/reviews/delete/**",
-                                                                "/api/reviews/update/**")
-                                                .authenticated()
-
-                                                // Any other request requires authentication
+                                                .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                                                .requestMatchers("/api/cart/**", "/api/cart").authenticated()
+                                                .requestMatchers("/api/orders/**", "/api/orders").authenticated()
+                                                .requestMatchers("/api/checkout/**").authenticated()
+                                                .requestMatchers("/api/users/profile", "/api/users/password/**").authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reviews/**").permitAll()
+                                                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/reviews").authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/reviews/**").authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/reviews/**").authenticated()
+                                                .requestMatchers("/api/reviews/can-review/**").authenticated()
                                                 .anyRequest().authenticated())
-
-                                // Session: Stateless (JWT-based, no session cookies)
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-
-                                // Authentication provider and JWT filter
                                 .authenticationProvider(authenticationProvider())
-                                .addFilterBefore(jwtAuthenticationFilter(), UsernamePasswordAuthenticationFilter.class)
-
-                                // Exception handling for unauthorized and forbidden
+                                .addFilterBefore(jwtFilter, UsernamePasswordAuthenticationFilter.class)
                                 .exceptionHandling(ex -> ex
                                                 .authenticationEntryPoint((request, response, authException) -> {
                                                         response.setStatus(401);
@@ -164,87 +113,43 @@ public class SecurityConfig {
                 return http.build();
         }
 
-        /**
-         * CORS Configuration: Restrictive policy for production security
-         * - Origins: Configurable via environment variable
-         * - Methods: Only necessary HTTP methods
-         * - Headers: Explicit whitelist
-         * - Credentials: Allowed for token-based auth
-         * - Max Age: 1 hour cache for preflight requests
-         */
         @Bean
-        public CorsConfigurationSource corsConfigurationSource() {
-                CorsConfiguration configuration = new CorsConfiguration();
-
-                // Parse origins from environment variable
-                List<String> allowedOrigins = Arrays.asList(corsOrigins.split(","));
-                configuration.setAllowedOrigins(allowedOrigins);
-
-                // Allow specific HTTP methods
-                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-
-                // Allow specific headers
-                configuration.setAllowedHeaders(Arrays.asList(
-                                "Authorization",
-                                "Content-Type",
-                                "Accept",
-                                "X-Requested-With"));
-
-                // Expose response headers
-                configuration.setExposedHeaders(Arrays.asList(
-                                "Authorization",
-                                "Content-Type"));
-
-                // Allow credentials (cookies, auth headers)
-                configuration.setAllowCredentials(true);
-
-                // Cache preflight requests for 1 hour
-                configuration.setMaxAge(corsMaxAge);
-
-                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-                source.registerCorsConfiguration("/**", configuration);
-                return source;
+        public DaoAuthenticationProvider authenticationProvider() {
+                DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+                provider.setUserDetailsService(userDetailsService);
+                provider.setPasswordEncoder(passwordEncoder());
+                provider.setHideUserNotFoundExceptions(true);
+                return provider;
         }
 
-        /**
-         * RestTemplate for OAuth2 token validation
-         */
-        @Bean
-        public org.springframework.web.client.RestTemplate restTemplate() {
-                return new org.springframework.web.client.RestTemplate();
-        }
-
-        /**
-         * Authentication Provider with DAO-based user details
-         * Marked @Lazy to defer creation until actually needed (breaks circular
-         * dependency)
-         */
-        @Bean
-        @Lazy
-        public AuthenticationProvider authenticationProvider() {
-                DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
-                authProvider.setUserDetailsService(userDetailsServiceProvider.getObject());
-                authProvider.setPasswordEncoder(passwordEncoder());
-
-                // Hide password in failed authentication
-                authProvider.setHideUserNotFoundExceptions(true);
-                return authProvider;
-        }
-
-        /**
-         * Authentication Manager for manual authentication
-         */
         @Bean
         public AuthenticationManager authenticationManager(AuthenticationConfiguration config) throws Exception {
                 return config.getAuthenticationManager();
         }
 
-        /**
-         * Password Encoder: BCrypt with configurable strength
-         * Strength of 12 = ~2^12 iterations (more secure, slightly slower)
-         */
         @Bean
         public PasswordEncoder passwordEncoder() {
                 return new BCryptPasswordEncoder(passwordEncoderStrength);
         }
+
+        @Bean
+        public CorsConfigurationSource corsConfigurationSource() {
+                CorsConfiguration configuration = new CorsConfiguration();
+                List<String> allowedOrigins = Arrays.asList(corsOrigins.split(","));
+                configuration.setAllowedOrigins(allowedOrigins);
+                configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
+                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+                configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
+                configuration.setAllowCredentials(true);
+                configuration.setMaxAge(corsMaxAge);
+                UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
+                source.registerCorsConfiguration("/**", configuration);
+                return source;
+        }
+
+        @Bean
+        public org.springframework.web.client.RestTemplate restTemplate() {
+                return new org.springframework.web.client.RestTemplate();
+        }
 }
+

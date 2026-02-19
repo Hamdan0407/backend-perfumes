@@ -12,6 +12,9 @@ import lombok.NoArgsConstructor;
 @Builder
 public class CheckoutRequest {
     
+    @NotBlank(message = "Recipient name is required")
+    private String recipientName;
+    
     @NotBlank(message = "Shipping address is required")
     private String shippingAddress;
     

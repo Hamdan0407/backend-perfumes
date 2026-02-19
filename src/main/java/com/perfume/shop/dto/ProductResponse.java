@@ -15,7 +15,7 @@ import java.util.List;
 @AllArgsConstructor
 @Builder
 public class ProductResponse {
-    
+
     private Long id;
     private String name;
     private String brand;
@@ -35,8 +35,15 @@ public class ProductResponse {
     private Integer reviewCount;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+    private List<ProductVariantResponse> variants;
+
     public static ProductResponse fromEntity(Product product) {
+        List<ProductVariantResponse> variantResponses = product.getVariants() != null
+                ? product.getVariants().stream()
+                        .map(ProductVariantResponse::fromEntity)
+                        .toList()
+                : List.of();
+
         return ProductResponse.builder()
                 .id(product.getId())
                 .name(product.getName())
@@ -57,6 +64,7 @@ public class ProductResponse {
                 .reviewCount(product.getReviewCount())
                 .createdAt(product.getCreatedAt())
                 .updatedAt(product.getUpdatedAt())
+                .variants(variantResponses)
                 .build();
     }
 }

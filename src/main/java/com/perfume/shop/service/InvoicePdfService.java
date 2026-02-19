@@ -44,9 +44,10 @@ public class InvoicePdfService {
             document.add(title);
             
             // Company info
-            Paragraph companyInfo = new Paragraph("Parfumé - Luxury Fragrance Store\n" +
-                    "📞 +91 9894722186\n" +
-                    "📧 muwas2021@gmail.com")
+            Paragraph companyInfo = new Paragraph("MUWAS - Luxury Fragrances & Premium Scents\n" +
+                    "No 3, Modi Ibrahim Street, Ambur, Tamil Nadu 635802\n" +
+                    "📞 +91 9629004158\n" +
+                    "📧 muwas2021@gmail.com | 🌐 www.muwas.com")
                     .setFontSize(10)
                     .setTextAlignment(TextAlignment.CENTER);
             document.add(companyInfo);

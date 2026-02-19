@@ -3,38 +3,41 @@ spring:
     name: perfume-shop
   
   profiles:
-    active: ${SPRING_PROFILES_ACTIVE:demo}
+    active: ${SPRING_PROFILES_ACTIVE:production}
   
   datasource:
-    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE;MODE=MySQL
-    driver-class-name: org.h2.Driver
-    username: sa
-    password: 
-  
-  h2:
-    console:
-      enabled: true
-      path: /h2-console
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:perfume_shop}
+    driver-class-name: org.postgresql.Driver
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:hamdaan2003}
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 5
+      connection-timeout: 30000
+      idle-timeout: 600000
+      max-lifetime: 1800000
   
   jpa:
     hibernate:
-      ddl-auto: create-drop
+      ddl-auto: ${DDL_AUTO:validate}
     show-sql: false
-    defer-datasource-initialization: true
-    database-platform: org.hibernate.dialect.H2Dialect
     properties:
       hibernate:
-        dialect: org.hibernate.dialect.H2Dialect
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
   
   sql:
     init:
-      mode: always
-      platform: h2
+      mode: never
   
   mail:
     host: ${MAIL_HOST:smtp.gmail.com}
     port: ${MAIL_PORT:587}
-    username: ${MAIL_USERNAME:hamdaan0615@gmail.com}
+    username: ${MAIL_USERNAME:muwas2021@gmail.com}
     password: ${MAIL_PASSWORD:bqxcpmlqsgtotqqq}
     properties:
       mail:
@@ -71,8 +74,8 @@ app:
     refresh-expiration: 604800000
     grace-period: 60000
   admin:
-    email: ${ADMIN_EMAIL:admin@perfumeshop.local}
-    password: ${ADMIN_PASSWORD:admin123456}
+    email: ${ADMIN_EMAIL:admin@muwas.com}
+    password: ${ADMIN_PASSWORD:hamdaan2003}
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:rzp_test_dummy}
     key-secret: ${RAZORPAY_KEY_SECRET:dummy_secret_key}
@@ -89,3 +92,39 @@ app:
     create-demo-admin: ${CREATE_DEMO_ADMIN:true}
   email:
     max-retries: 3
+  version: 1.0.0
+  name: Perfume Shop API
+
+# SpringDoc OpenAPI Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    enabled: true
+    operations-sorter: method
+    tags-sorter: alpha
+    display-request-duration: true
+    show-extensions: true
+  show-actuator: true
+
+# Actuator Configuration for Health Checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+      base-path: /actuator
+  endpoint:
+    health:
+      show-details: when-authorized
+      probes:
+        enabled: true
+  health:
+    db:
+      enabled: true
+    redis:
+      enabled: false  # Disabled since Redis is optional
+  info:
+    env:
+      enabled: true

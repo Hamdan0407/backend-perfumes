@@ -14,7 +14,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @Builder
 public class CouponResponse {
-    
+
     private Long id;
     private String code;
     private String description;
@@ -23,6 +23,7 @@ public class CouponResponse {
     private BigDecimal minOrderAmount;
     private BigDecimal maxDiscountAmount;
     private Integer usageLimit;
+    private Integer usageLimitPerUser;
     private Integer usedCount;
     private Integer remainingUses;
     private LocalDateTime validFrom;
@@ -32,11 +33,11 @@ public class CouponResponse {
     private Boolean isUsedUp;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
-    
+
     public static CouponResponse fromEntity(Coupon coupon) {
         LocalDateTime now = LocalDateTime.now();
         int remaining = coupon.getUsageLimit() - coupon.getUsedCount();
-        
+
         return CouponResponse.builder()
                 .id(coupon.getId())
                 .code(coupon.getCode())
@@ -46,6 +47,7 @@ public class CouponResponse {
                 .minOrderAmount(coupon.getMinOrderAmount())
                 .maxDiscountAmount(coupon.getMaxDiscountAmount())
                 .usageLimit(coupon.getUsageLimit())
+                .usageLimitPerUser(coupon.getUsageLimitPerUser()) // Mapped new field
                 .usedCount(coupon.getUsedCount())
                 .remainingUses(remaining)
                 .validFrom(coupon.getValidFrom())
