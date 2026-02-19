@@ -1,4 +1,4 @@
-# Maven
+# --- Maven ---
 target/
 !.mvn/wrapper/maven-wrapper.jar
 *.jar
@@ -6,7 +6,7 @@ target/
 *.ear
 *.class
 
-# IDE
+# --- IDE ---
 .idea/
 .vscode/
 *.iml
@@ -15,14 +15,39 @@ target/
 .settings/
 .classpath
 .project
-
-# Logs
-*.log
-logs/
-
-# OS
 .DS_Store
-Thumbs.db
 
-# Application
-application-local.yml
+# --- Logs & Temp ---
+logs/
+*.log
+*.txt
+temp_*/
+tmp/
+
+# --- Frontend (Ignored for Backend Repo) ---
+frontend/
+node_modules/
+dist/
+build/
+
+# --- Environment & Secrets ---
+.env
+.env.*
+*.bak
+secrets/
+
+# --- Database ---
+*.sql
+*.db
+*.sqlite
+
+# --- OS & Misc ---
+Thumbs.db
+Desktop.ini
+
+# --- Generated Documentation (Optional: Ignore if not needed) ---
+*_SUMMARY.md
+*_REPORT.md
+*_CHECKLIST.md
+*_GUIDE.md
+*_INDEX.md
