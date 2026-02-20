@@ -1,8 +1,8 @@
 -- Sample products only - Users are created by initializers
 
 -- Clean start for products and variants
-TRUNCATE TABLE product_variants RESTART IDENTITY CASCADE;
-TRUNCATE TABLE products RESTART IDENTITY CASCADE;
+TRUNCATE TABLE IF EXISTS product_variants RESTART IDENTITY CASCADE;
+TRUNCATE TABLE IF EXISTS products RESTART IDENTITY CASCADE;
 
 INSERT INTO products (name, brand, description, price, discount_price, category, type, volume, image_url, stock, active, featured, rating, review_count, created_at, updated_at) VALUES
 ('No. 5', 'Chanel', 'Iconic floral fragrance with timeless elegance', 5000.00, NULL, 'Women', 'Perfume', 50, 'https://placehold.co/600x600?text=Chanel+No+5', 100, TRUE, TRUE, 4.8, 245, NOW(), NOW()),

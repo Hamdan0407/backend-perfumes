@@ -25,6 +25,7 @@ spring:
     hibernate:
       ddl-auto: update  # Safe for production - only updates schema
     defer-datasource-initialization: true
+    generate-ddl: true
     show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
