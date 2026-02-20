@@ -6,10 +6,10 @@ spring:
   # DATABASE CONFIGURATION (PostgreSQL)
   # ============================================
   datasource:
-    url: ${DB_URL:jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:perfume_shop}}
+    url: ${DB_URL:jdbc:postgresql://${DB_HOST:nozomi.proxy.rlwy.net}:${DB_PORT:48433}/${DB_NAME:railway}}
     driver-class-name: org.postgresql.Driver
     username: ${DB_USERNAME:postgres}
-    password: ${DB_PASSWORD:hamdaan2003}
+    password: ${DB_PASSWORD:uYQCVLEMctUIkpNQDnFYwPMlQfYExTGs}
     hikari:
       maximum-pool-size: 20
       minimum-idle: 5
