@@ -24,9 +24,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update  # Safe for production - only updates schema
-    defer-datasource-initialization: false # Set to false so schema.sql runs FIRST
+    defer-datasource-initialization: true
     generate-ddl: true
-    show-sql: true # Enable for debugging
+    show-sql: false # Clean logs for production
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
@@ -39,7 +39,7 @@ spring:
   
   sql:
     init:
-      mode: always
+      mode: never
 
   # ============================================
   # REDIS CACHING - DISABLED IN PRODUCTION (using simple cache)
@@ -89,7 +89,7 @@ spring:
 # SERVER CONFIGURATION
 # ============================================
 server:
-  port: ${PORT:8080}
+  port: ${PORT}
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain
