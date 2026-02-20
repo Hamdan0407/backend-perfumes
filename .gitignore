@@ -38,6 +38,8 @@ secrets/
 
 # --- Database ---
 *.sql
+!schema.sql
+!data.sql
 *.db
 *.sqlite
 
