@@ -17,4 +17,20 @@ public class PerfumeShopApplication {
     public static void main(String[] args) {
         SpringApplication.run(PerfumeShopApplication.class, args);
     }
+
+    @org.springframework.context.annotation.Bean
+    public org.springframework.boot.CommandLineRunner diagnosticRunner(
+            jakarta.persistence.EntityManager entityManager) {
+        return args -> {
+            System.out.println("========== JPA DIAGNOSTIC START ==========");
+            System.out.println("Entities detected by EntityManager:");
+            try {
+                entityManager.getMetamodel().getEntities().forEach(entity -> System.out
+                        .println(" - Detected: " + entity.getName() + " [" + entity.getJavaType().getName() + "]"));
+            } catch (Exception e) {
+                System.out.println("Error scanning entities: " + e.getMessage());
+            }
+            System.out.println("========== JPA DIAGNOSTIC END ==========");
+        };
+    }
 }
