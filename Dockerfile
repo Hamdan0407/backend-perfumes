@@ -48,7 +48,7 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
 EXPOSE 8080 9090
 
 # Environment variables (can be overridden at runtime)
-ENV SPRING_PROFILES_ACTIVE=demo
+ENV SPRING_PROFILES_ACTIVE=prod
 ENV LOG_DIR=/var/log/perfume-shop
 ENV JAVA_OPTS="-Xmx1g -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
 
