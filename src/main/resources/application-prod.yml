@@ -6,7 +6,7 @@ spring:
   # DATABASE CONFIGURATION (PostgreSQL)
   # ============================================
   datasource:
-    url: ${JDBC_DATABASE_URL:jdbc:postgresql://${PGHOST:nozomi.proxy.rlwy.net}:${PGPORT:48433}/${PGDATABASE:railway}}
+    url: jdbc:postgresql://${PGHOST:nozomi.proxy.rlwy.net}:${PGPORT:48433}/${PGDATABASE:railway}
     driver-class-name: org.postgresql.Driver
     username: ${PGUSER:postgres}
     password: ${PGPASSWORD:uYQCVLEMctUIkpNQDnFYwPMlQfYExTGs}
