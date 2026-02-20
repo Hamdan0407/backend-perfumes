@@ -50,6 +50,7 @@ EXPOSE 8080 9090
 # Environment variables (can be overridden at runtime)
 ENV SPRING_PROFILES_ACTIVE=prod
 ENV LOG_DIR=/var/log/perfume-shop
+ENV SPRING_DATASOURCE_URL="jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}"
 ENV JAVA_OPTS="-Xmx1g -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200"
 
 # Run application
