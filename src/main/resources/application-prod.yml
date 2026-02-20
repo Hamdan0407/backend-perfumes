@@ -24,6 +24,7 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update  # Safe for production - only updates schema
+    defer-datasource-initialization: true
     show-sql: false
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
@@ -38,7 +39,7 @@ spring:
   
   sql:
     init:
-      mode: never
+      mode: always
 
   # ============================================
   # REDIS CACHING - DISABLED IN PRODUCTION (using simple cache)
