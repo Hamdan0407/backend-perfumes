@@ -24,9 +24,9 @@ spring:
   jpa:
     hibernate:
       ddl-auto: update  # Safe for production - only updates schema
-    defer-datasource-initialization: true
+    defer-datasource-initialization: false # Set to false so schema.sql runs FIRST
     generate-ddl: true
-    show-sql: false
+    show-sql: true # Enable for debugging
     database-platform: org.hibernate.dialect.PostgreSQLDialect
     properties:
       hibernate:
@@ -104,10 +104,13 @@ server:
 # ============================================
 logging:
   level:
-    ROOT: WARN
-    com.perfume.shop: INFO
-    org.springframework.web: WARN
-    org.hibernate: WARN
+    ROOT: INFO
+    com.perfume.shop: DEBUG
+    org.springframework.web: INFO
+    org.hibernate.SQL: DEBUG
+    org.hibernate.orm.model.scanning: DEBUG
+    org.hibernate.tool.schema: DEBUG
+    org.springframework.jdbc.datasource.init: DEBUG
   pattern:
     console: "%d{yyyy-MM-dd HH:mm:ss} - %msg%n"
   file:
