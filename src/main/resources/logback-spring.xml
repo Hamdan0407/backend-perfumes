@@ -104,19 +104,11 @@
         </encoder>
     </appender>
     
-    <!-- ASYNC APPENDER - Wraps file appender for better performance -->
-    <!-- This prevents logging from blocking the application -->
-    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
-        <appender-ref ref="FILE"/>
-        
-        <!-- Queue capacity (size of the queue before blocking) -->
+    <!-- ASYNC APPENDER - Wraps console for robustness in logs -->
+    <appender name="ASYNC_CONSOLE" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="CONSOLE"/>
         <queueSize>512</queueSize>
-        
-        <!-- Discard low-priority logs if queue is full -->
         <discardingThreshold>0</discardingThreshold>
-        
-        <!-- Include MDC (Mapped Diagnostic Context) -->
-        <includeCallerData>false</includeCallerData>
     </appender>
     
     <!-- =====================================================
@@ -124,34 +116,18 @@
          ===================================================== -->
     
     <!-- Application Loggers -->
-    <logger name="com.perfume" level="INFO"/>
-    <logger name="com.perfume.shop" level="INFO"/>
+    <logger name="com.perfume" level="DEBUG"/>
+    <logger name="com.perfume.shop" level="DEBUG"/>
     
-    <!-- Spring Framework Loggers -->
-    <logger name="org.springframework" level="WARN"/>
-    <logger name="org.springframework.boot" level="WARN"/>
-    <logger name="org.springframework.web" level="WARN"/>
-    <logger name="org.springframework.security" level="WARN"/>
-    <logger name="org.springframework.data" level="WARN"/>
+    <!-- Explicitly allow Hibernate diagnostic output -->
+    <logger name="org.hibernate.SQL" level="DEBUG"/>
+    <logger name="org.hibernate.type.descriptor.sql" level="TRACE"/>
+    <logger name="org.hibernate.orm.model.scanning" level="DEBUG"/>
+    <logger name="org.hibernate.tool.schema" level="DEBUG"/>
     
-    <!-- Security Audit Logger -->
-    <logger name="com.perfume.shop.security" level="INFO" additivity="false">
-        <appender-ref ref="SECURITY_FILE"/>
-        <appender-ref ref="CONSOLE"/>
-    </logger>
-    
-    <!-- Hibernate Loggers -->
-    <logger name="org.hibernate" level="WARN"/>
-    <logger name="org.hibernate.SQL" level="WARN"/>
-    <logger name="org.hibernate.type.descriptor.sql" level="WARN"/>
-    
-    <!-- Third-party Libraries -->
-    <logger name="org.apache.catalina" level="WARN"/>
-    <logger name="org.apache.tomcat" level="WARN"/>
-    <logger name="org.apache.commons" level="WARN"/>
-    
-    <!-- Database Connection Pool -->
-    <logger name="com.zaxxer.hikari" level="WARN"/>
+    <!-- Spring Framework Loggers - Relaxed for Debugging -->
+    <logger name="org.springframework.jdbc.datasource.init" level="DEBUG"/>
+    <logger name="org.springframework.orm.jpa" level="DEBUG"/>
     
     <!-- =====================================================
          PROFILES - Spring profiles for dev/prod
@@ -167,8 +143,6 @@
     <!-- Production Profile -->
     <springProfile name="prod">
         <root level="INFO">
-            <appender-ref ref="ASYNC_FILE"/>
-            <appender-ref ref="ERROR_FILE"/>
             <appender-ref ref="CONSOLE"/>
         </root>
     </springProfile>
