@@ -54,4 +54,4 @@ ENV SPRING_DATASOURCE_URL="jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}"
 ENV JAVA_OPTS="-Xmx1024m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ExitOnOutOfMemoryError"
 
 # Run application
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -Dspring.profiles.active=$SPRING_PROFILES_ACTIVE -jar app.jar"]
+ENTRYPOINT ["sh", "-c", "export JDBC_DATABASE_URL=$(echo $DATABASE_URL | sed 's/postgres:\\/\\//jdbc:postgresql:\\/\\//'); java $JAVA_OPTS -Dspring.datasource.url=$JDBC_DATABASE_URL -Dserver.port=$PORT -Dspring.profiles.active=$SPRING_PROFILES_ACTIVE -jar app.jar"]

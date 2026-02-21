@@ -1,1 +1,1 @@
-web: java -Xmx900m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ExitOnOutOfMemoryError -Dserver.port=$PORT -Dspring.profiles.active=prod -jar target/perfume-shop-1.0.0.jar
+web: env JDBC_DATABASE_URL=$(echo $DATABASE_URL | sed 's/postgres:\/\//jdbc:postgresql:\/\//') java -Xmx900m -Xms512m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:+ExitOnOutOfMemoryError -Dserver.port=$PORT -Dspring.datasource.url=$JDBC_DATABASE_URL -Dspring.profiles.active=prod -jar target/perfume-shop-1.0.0.jar
