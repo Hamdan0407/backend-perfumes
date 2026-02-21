@@ -38,8 +38,6 @@ public class ProductionDataInitializer implements CommandLineRunner {
 
         createAdminUser();
 
-        createAdminUser();
-
         log.info("Production data initialization completed");
     }
 
