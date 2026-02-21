@@ -132,6 +132,7 @@ app:
   # CDN Configuration for Images
   cdn:
     enabled: ${CDN_ENABLED:false}
+    base-url: ${CDN_BASE_URL:}
     provider: ${CDN_PROVIDER:local}
 
 
