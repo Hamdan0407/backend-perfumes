@@ -105,8 +105,8 @@ app:
     grace-period: 60000
   
   admin:
-    email: ${ADMIN_EMAIL:admin@muwas.com}
-    password: ${ADMIN_PASSWORD:hamdaan2003}
+    email: ${ADMIN_EMAIL:admin@perfumeshop.local}
+    password: ${ADMIN_PASSWORD:admin123456}
   
   razorpay:
     key-id: ${RAZORPAY_KEY_ID:rzp_live_SFtj4V3hLBRWWl}

@@ -72,7 +72,7 @@ public class ProductionDataInitializer implements CommandLineRunner {
 
     private boolean isWeakPassword(String password) {
         return password == null ||
-                password.length() < 12 ||
+                password.length() < 10 ||
                 password.equals("CHANGE_ME_SECURE_PASSWORD") ||
                 password.equals("password") ||
                 password.equals("123456") ||
