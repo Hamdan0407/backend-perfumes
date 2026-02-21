@@ -36,10 +36,7 @@ public class ProductionDataInitializer implements CommandLineRunner {
     public void run(String... args) {
         log.info("Production data initializer starting...");
 
-        if (userRepository.count() > 0) {
-            log.info("Users already exist in database, skipping admin user creation");
-            return;
-        }
+        createAdminUser();
 
         createAdminUser();
 
