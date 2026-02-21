@@ -42,20 +42,25 @@ public class ProductionDataInitializer implements CommandLineRunner {
     }
 
     private void createAdminUser() {
-        // Check if admin user already exists
-        if (userRepository.findByEmail(adminEmail).isPresent()) {
-            log.info("Admin user already exists: {}", adminEmail);
+        User adminUser = userRepository.findByEmail(adminEmail).orElse(null);
+
+        if (adminUser != null) {
+            log.info("Admin user found, ensuring credentials are up to date: {}", adminEmail);
+            adminUser.setPassword(passwordEncoder.encode(adminPassword));
+            adminUser.setRole(User.Role.ADMIN);
+            adminUser.setActive(true);
+            userRepository.save(adminUser);
+            log.info("✅ Admin credentials synchronized for: {}", adminEmail);
             return;
         }
 
-        // Validate admin password strength
+        // Validate admin password strength (logging only)
         if (isWeakPassword(adminPassword)) {
-            log.error("SECURITY WARNING: Admin password is weak! Please change it immediately.");
-            log.error("Current password appears to be a default placeholder.");
+            log.warn("⚠️ Admin password is considered weak. Security improvement recommended.");
         }
 
-        // Create admin user
-        User adminUser = User.builder()
+        // Create new admin user
+        adminUser = User.builder()
                 .email(adminEmail)
                 .password(passwordEncoder.encode(adminPassword))
                 .firstName("Mohammed")
@@ -65,9 +70,7 @@ public class ProductionDataInitializer implements CommandLineRunner {
                 .build();
 
         userRepository.save(adminUser);
-
-        log.info("✅ Created production admin user: {}", adminEmail);
-        log.info("🔒 IMPORTANT: Change the default admin password immediately after first login!");
+        log.info("✨ Created new production admin user: {}", adminEmail);
     }
 
     private boolean isWeakPassword(String password) {
