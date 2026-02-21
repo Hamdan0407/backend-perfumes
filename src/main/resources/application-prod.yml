@@ -6,7 +6,7 @@ spring:
   # DATABASE CONFIGURATION (PostgreSQL)
   # ============================================
   datasource:
-    url: ${DATABASE_URL}
+    url: jdbc:${DATABASE_URL}
 
   jpa:
     hibernate:
