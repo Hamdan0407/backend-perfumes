@@ -17,7 +17,7 @@ import org.springframework.stereotype.Component;
  * NO demo data, NO sample products
  */
 @Component
-@Profile("production")
+@Profile({ "production", "prod" })
 @Order(1)
 @RequiredArgsConstructor
 @Slf4j

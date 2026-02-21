@@ -27,7 +27,7 @@ import org.springframework.stereotype.Component;
  * 4. Use environment-based password rotation
  */
 @Component
-@Profile("!production") // Only run when NOT in production profile
+@Profile({ "!production", "!prod" })
 @ConditionalOnProperty(name = "app.init.create-demo-admin", havingValue = "true")
 @Order(2)
 @RequiredArgsConstructor
