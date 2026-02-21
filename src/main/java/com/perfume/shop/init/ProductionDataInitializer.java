@@ -34,11 +34,15 @@ public class ProductionDataInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) {
-        log.info("Production data initializer starting...");
-
-        createAdminUser();
-
-        log.info("Production data initialization completed");
+        try {
+            log.info("Production data initializer starting...");
+            createAdminUser();
+            log.info("Production data initialization completed");
+        } catch (Exception e) {
+            log.error(
+                    "CRITICAL: Failed to initialize production admin data. The application will continue to start, but admin access may be affected.",
+                    e);
+        }
     }
 
     private void createAdminUser() {
