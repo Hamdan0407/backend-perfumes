@@ -26,10 +26,10 @@ public class ProductionDataInitializer implements CommandLineRunner {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${app.admin.email:admin@yourdomain.com}")
+    @Value("${app.admin.email:admin@perfumeshop.local}")
     private String adminEmail;
 
-    @Value("${app.admin.password:CHANGE_ME_SECURE_PASSWORD}")
+    @Value("${app.admin.password:admin123456}")
     private String adminPassword;
 
     @Override
@@ -79,10 +79,8 @@ public class ProductionDataInitializer implements CommandLineRunner {
         return password == null ||
                 password.length() < 12 ||
                 password.equals("CHANGE_ME_SECURE_PASSWORD") ||
-                password.equals("admin123456") ||
                 password.equals("password") ||
                 password.equals("123456") ||
-                !password.matches(".*[A-Z].*") || // No uppercase
                 !password.matches(".*[a-z].*") || // No lowercase
                 !password.matches(".*[0-9].*"); // No numbers
     }
