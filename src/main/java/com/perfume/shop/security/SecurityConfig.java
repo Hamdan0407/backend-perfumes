@@ -87,12 +87,22 @@ public class SecurityConfig {
                                                 .requestMatchers("/api/cart/**", "/api/cart").authenticated()
                                                 .requestMatchers("/api/orders/**", "/api/orders").authenticated()
                                                 .requestMatchers("/api/checkout/**").authenticated()
-                                                .requestMatchers("/api/users/profile", "/api/users/password/**").authenticated()
-                                                .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reviews/**").permitAll()
-                                                .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/reviews").authenticated()
-                                                .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/reviews/**").authenticated()
-                                                .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/reviews/**").authenticated()
+                                                .requestMatchers("/api/users/profile", "/api/users/password/**")
+                                                .authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                                                "/api/reviews/**")
+                                                .permitAll()
+                                                .requestMatchers(org.springframework.http.HttpMethod.POST,
+                                                                "/api/reviews")
+                                                .authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.PUT,
+                                                                "/api/reviews/**")
+                                                .authenticated()
+                                                .requestMatchers(org.springframework.http.HttpMethod.DELETE,
+                                                                "/api/reviews/**")
+                                                .authenticated()
                                                 .requestMatchers("/api/reviews/can-review/**").authenticated()
+                                                .requestMatchers("/api/product/**").permitAll()
                                                 .anyRequest().authenticated())
                                 .sessionManagement(session -> session
                                                 .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
@@ -138,7 +148,8 @@ public class SecurityConfig {
                 List<String> allowedOrigins = Arrays.asList(corsOrigins.split(","));
                 configuration.setAllowedOrigins(allowedOrigins);
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
-                configuration.setAllowedHeaders(Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+                configuration.setAllowedHeaders(
+                                Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
                 configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
                 configuration.setAllowCredentials(true);
                 configuration.setMaxAge(corsMaxAge);
@@ -152,4 +163,3 @@ public class SecurityConfig {
                 return new org.springframework.web.client.RestTemplate();
         }
 }
-
