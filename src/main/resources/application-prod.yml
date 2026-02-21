@@ -6,36 +6,12 @@ spring:
   # DATABASE CONFIGURATION (PostgreSQL)
   # ============================================
   datasource:
-    hikari:
-      jdbc-url: jdbc:postgresql://${PGHOST}:${PGPORT}/${PGDATABASE}    
-      maximum-pool-size: 20
-      minimum-idle: 5
-      connection-timeout: 20000
-      idle-timeout: 300000
-      max-lifetime: 1200000
-      leak-detection-threshold: 60000
-    driver-class-name: org.postgresql.Driver
-    username: ${PGUSER}
-    password: ${PGPASSWORD}
-  
-  # ============================================
-  # JPA/HIBERNATE CONFIGURATION
-  # ============================================
+    url: ${DATABASE_URL}
+
   jpa:
     hibernate:
-      ddl-auto: update  # Safe for production - only updates schema
-    defer-datasource-initialization: true
-    generate-ddl: true
-    show-sql: false # Clean logs for production
-    database-platform: org.hibernate.dialect.PostgreSQLDialect
-    properties:
-      hibernate:
-        format_sql: false
-        use_sql_comments: false
-        jdbc:
-          batch_size: 20
-        order_inserts: true
-        order_updates: true
+      ddl-auto: update
+    
   
   sql:
     init:
