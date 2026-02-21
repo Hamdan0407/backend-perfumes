@@ -65,6 +65,7 @@ spring:
 # SERVER CONFIGURATION
 # ============================================
 server:
+  address: 0.0.0.0
   port: ${PORT}
   compression:
     enabled: true
