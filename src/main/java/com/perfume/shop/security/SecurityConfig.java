@@ -55,6 +55,18 @@ public class SecurityConfig {
                                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                                 .headers(headers -> headers
                                                 .frameOptions(frame -> frame.deny())
+                                                .contentSecurityPolicy(csp -> csp
+                                                                .policyDirectives("default-src 'self'; " +
+                                                                                "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://accounts.google.com https://checkout.razorpay.com; "
+                                                                                +
+                                                                                "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                                                                                +
+                                                                                "img-src 'self' data: https:; " +
+                                                                                "font-src 'self' https://fonts.gstatic.com; "
+                                                                                +
+                                                                                "connect-src 'self' https://backend-perfumes-production.up.railway.app https://api.razorpay.com; "
+                                                                                +
+                                                                                "frame-src 'self' https://accounts.google.com https://api.razorpay.com;"))
                                                 .httpStrictTransportSecurity(hsts -> hsts
                                                                 .maxAgeInSeconds(31536000)
                                                                 .includeSubDomains(true)))
@@ -149,7 +161,8 @@ public class SecurityConfig {
                 configuration.setAllowedOrigins(allowedOrigins);
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                 configuration.setAllowedHeaders(
-                                Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With"));
+                                Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin",
+                                                "Access-Control-Request-Method", "Access-Control-Request-Headers"));
                 configuration.setExposedHeaders(Arrays.asList("Authorization", "Content-Type"));
                 configuration.setAllowCredentials(true);
                 configuration.setMaxAge(corsMaxAge);
