@@ -64,7 +64,8 @@ spring:
 # ============================================
 # SERVER CONFIGURATION
 # ============================================
-
+server:
+  port: ${PORT}
   compression:
     enabled: true
     mime-types: application/json,application/xml,text/html,text/plain
