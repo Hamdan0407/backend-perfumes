@@ -56,9 +56,7 @@ spring:
     type: simple  # Use in-memory caching instead of Redis
 
 
-server:
-  address: 0.0.0.0
-  port: ${PORT}
+
   error:
     include-message: on-param
     include-stacktrace: on-param
