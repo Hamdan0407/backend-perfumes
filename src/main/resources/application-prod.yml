@@ -119,7 +119,7 @@ app:
     webhook-secret: ${STRIPE_WEBHOOK_SECRET:whsec_dummy}
   
   security:
-    cors-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4173,http://localhost:5173,https://muwas.com,https://www.muwas.com}
+    cors-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:3000,http://localhost:4173,http://localhost:5173,https://muwas.in,https://www.muwas.in,https://muwas.com,https://www.muwas.com}
     cors-max-age: ${CORS_MAX_AGE:3600}
     password-encoder-strength: ${PASSWORD_ENCODER_STRENGTH:12}
   

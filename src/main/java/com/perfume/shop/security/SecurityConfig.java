@@ -32,7 +32,7 @@ public class SecurityConfig {
         private final JwtService jwtService;
         private final UserDetailsService userDetailsService;
 
-        @Value("${app.security.cors-origins:http://localhost:3000,http://localhost:5173}")
+        @Value("${app.security.cors-origins:http://localhost:3000,http://localhost:5173,https://muwas.in,https://www.muwas.in}")
         private String corsOrigins;
 
         @Value("${app.security.cors-max-age:3600}")

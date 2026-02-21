@@ -38,8 +38,9 @@ public class OpenApiConfig {
                                                                 +
                                                                 "order processing, payment integration (Razorpay), and admin operations.")
                                                 .contact(new Contact()
-                                                                .name("API Support")
-                                                                .email("support@perfumeshop.com"))
+                                                                .name("Perfume Shop")
+                                                                .email("support@muwas.in")
+                                                                .url("https://muwas.in"))
                                                 .license(new License()
                                                                 .name("MIT License")
                                                                 .url("https://opensource.org/licenses/MIT")))
@@ -48,7 +49,7 @@ public class OpenApiConfig {
                                                                 .url("/")
                                                                 .description("Default Server"),
                                                 new Server()
-                                                                .url("https://api.perfumeshop.com")
+                                                                .url("https://backend-perfumes-production.up.railway.app")
                                                                 .description("Production Server")))
                                 .components(new Components()
                                                 .addSecuritySchemes("bearer-jwt", new SecurityScheme()
