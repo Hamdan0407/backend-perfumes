@@ -158,13 +158,17 @@ public class SecurityConfig {
         @Bean
         public CorsConfigurationSource corsConfigurationSource() {
                 CorsConfiguration configuration = new CorsConfiguration();
-                configuration.setAllowedOriginPatterns(Arrays.asList(
-                                "http://localhost:[*]",
-                                "https://*.vercel.app",
-                                "https://muwas.in",
-                                "https://www.muwas.in",
-                                "https://muwas.com",
-                                "https://www.muwas.com"));
+                if (corsOrigins != null && !corsOrigins.isEmpty()) {
+                        configuration.setAllowedOrigins(Arrays.asList(corsOrigins.split(",")));
+                } else {
+                        configuration.setAllowedOriginPatterns(Arrays.asList(
+                                        "http://localhost:[*]",
+                                        "https://*.vercel.app",
+                                        "https://muwas.in",
+                                        "https://www.muwas.in",
+                                        "https://muwas.com",
+                                        "https://www.muwas.com"));
+                }
                 configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
                 configuration.setAllowedHeaders(
                                 Arrays.asList("Authorization", "Content-Type", "Accept", "X-Requested-With", "Origin",
