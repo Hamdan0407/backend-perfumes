@@ -42,7 +42,7 @@ USER perfume
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=45s --retries=3 \
-    CMD wget --quiet --tries=1 --spider http://localhost:8080/actuator/health || exit 1
+    CMD wget --quiet --tries=1 --spider http://localhost:${PORT:-8080}/actuator/health || exit 1
 
 # Expose ports
 

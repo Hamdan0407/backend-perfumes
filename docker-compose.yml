@@ -177,7 +177,7 @@ services:
       APP_LOG_LEVEL: INFO
     
     ports:
-      - "8080:8080"
+      - "${PORT:-8080}:${PORT:-8080}"
       - "9090:9090"  # Management/actuator port
     
     volumes:
